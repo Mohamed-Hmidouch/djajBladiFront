@@ -41,10 +41,28 @@ export function DashboardNav() {
         {userRole === 'Admin' && (
           <>
             <Link
-              href="/dashboard/users"
+              href="/dashboard/admin/users"
               className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
             >
               Users
+            </Link>
+            <Link
+              href="/dashboard/admin/buildings"
+              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
+            >
+              Buildings
+            </Link>
+            <Link
+              href="/dashboard/admin/batches"
+              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
+            >
+              Batches
+            </Link>
+            <Link
+              href="/dashboard/admin/stock"
+              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
+            >
+              Stock
             </Link>
             <Link
               href="/dashboard/settings"
