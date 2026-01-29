@@ -1,0 +1,355 @@
+/* ============================================
+   DJAJBLADI DESIGN SYSTEM - CSS VARIABLES
+   Professional Agri-Food/Poultry Branding
+   ============================================ */
+
+/* WARNING: NO EMOJIS ALLOWED IN ANY CODE FILE */
+
+/* Fonts are loaded via Next.js font optimization in layout.tsx */
+
+:root {
+  /* ==========================================
+     COLOR TOKENS
+     ========================================== */
+  
+  /* Primary - Trust & Corporate (Deep Navy) */
+  --color-primary: #1B2A41;
+  --color-primary-hover: #152233;
+  
+  /* Brand Accent - Action & Energy (Terracotta Red) */
+  --color-brand: #C84630;
+  --color-brand-hover: #A63A28;
+  
+  /* Surfaces */
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F4F6F8;
+  --color-surface-3: #E0E6ED;
+  
+  /* Borders & Dividers */
+  --color-border: #E2E8F0;
+  
+  /* Text Colors */
+  --color-text-primary: #1B2A41;
+  --color-text-body: #4A5568;
+  --color-text-muted: #718096;
+  --color-text-inverse: #FFFFFF;
+  --color-text-inverse-muted: rgba(255, 255, 255, 0.8);
+
+  /* ==========================================
+     SPATIAL SYSTEM (8-Point Grid)
+     ========================================== */
+  
+  --space-unit: 4px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+  --space-section: 80px;
+  --space-section-lg: 120px;
+
+  /* Layout Constraints */
+  --container-max: 1280px;
+  --content-max: 65ch;
+  --navbar-height: 80px;
+
+  /* ==========================================
+     TYPOGRAPHY SYSTEM
+     ========================================== */
+  
+  /* Font Families */
+  --font-heading: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  
+  /* H1 - Hero Headlines */
+  --text-h1-size: 48px;
+  --text-h1-line: 1.1;
+  --text-h1-tracking: -0.02em;
+  --text-h1-weight: 700;
+  
+  /* H2 - Section Titles */
+  --text-h2-size: 32px;
+  --text-h2-line: 1.2;
+  --text-h2-weight: 600;
+  
+  /* H3 - Card Titles */
+  --text-h3-size: 20px;
+  --text-h3-line: 1.4;
+  --text-h3-weight: 600;
+  
+  /* Body Text */
+  --text-body-size: 16px;
+  --text-body-line: 1.6;
+  --text-body-weight: 400;
+  
+  /* Caption/Label */
+  --text-caption-size: 12px;
+  --text-caption-tracking: 0.05em;
+  --text-caption-weight: 700;
+
+  /* ==========================================
+     COMPONENT PHYSICS
+     ========================================== */
+  
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Shadows - Elevation Levels */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+  :root {
+    --text-h1-size: 36px;
+    --text-h2-size: 28px;
+    --text-h3-size: 18px;
+    --space-section: 64px;
+    --space-section-lg: 80px;
+    --navbar-height: 64px;
+  }
+}
+
+/* ============================================
+   BASE TYPOGRAPHY CLASSES
+   ============================================ */
+
+.heading-1 {
+  font-family: var(--font-heading);
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
+  letter-spacing: var(--text-h1-tracking);
+  font-weight: var(--text-h1-weight);
+  color: var(--color-text-primary);
+}
+
+.heading-2 {
+  font-family: var(--font-heading);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line);
+  font-weight: var(--text-h2-weight);
+  color: var(--color-text-primary);
+}
+
+.heading-3 {
+  font-family: var(--font-heading);
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-line);
+  font-weight: var(--text-h3-weight);
+  color: var(--color-text-primary);
+}
+
+.body-text {
+  font-family: var(--font-body);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  font-weight: var(--text-body-weight);
+  color: var(--color-text-body);
+}
+
+.caption {
+  font-family: var(--font-body);
+  font-size: var(--text-caption-size);
+  letter-spacing: var(--text-caption-tracking);
+  font-weight: var(--text-caption-weight);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ============================================
+   BUTTON COMPONENTS
+   ============================================ */
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: var(--color-brand);
+  color: var(--color-text-inverse);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-brand-hover);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-primary);
+  background-color: transparent;
+  color: var(--color-primary);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* ============================================
+   CARD COMPONENT
+   ============================================ */
+
+.card {
+  background-color: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-md);
+  transition: var(--transition-base);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ============================================
+   LAYOUT COMPONENTS
+   ============================================ */
+
+.navbar {
+  height: var(--navbar-height);
+  padding: 0 var(--space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid var(--color-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--space-lg);
+}
+
+.section {
+  padding: var(--space-section) 0;
+}
+
+.section-alt {
+  padding: var(--space-section) 0;
+  background-color: var(--color-surface-2);
+}
+
+.section-large {
+  padding: var(--space-section-lg) 0;
+}
+
+.hero {
+  padding: var(--space-section-lg) 0;
+  min-height: calc(100vh - var(--navbar-height));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.hero-content {
+  max-width: var(--content-max);
+  padding: 0 var(--space-lg);
+}
+
+.footer {
+  padding: var(--space-3xl) 0;
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse-muted);
+}
+
+.footer-heading {
+  color: var(--color-text-inverse);
+  margin-bottom: var(--space-md);
+}
+
+.footer-link {
+  color: var(--color-text-inverse-muted);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.footer-link:hover {
+  color: var(--color-text-inverse);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.max-content { max-width: var(--content-max); }
+.mx-auto { margin-left: auto; margin-right: auto; }
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.gap-lg { gap: var(--space-lg); }
+.gap-xl { gap: var(--space-xl); }
+
+.grid { display: grid; }
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 768px) {
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+}
