@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui';
@@ -71,28 +72,71 @@ export default function DashboardPage() {
         {/* Admin Cards */}
         {user?.role === 'Admin' && (
           <>
-            <Card hover>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage all users in the system</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-[var(--color-text-body)]">
-                  Add, edit, or remove users and manage their roles.
-                </p>
-              </CardContent>
-            </Card>
-            <Card hover>
-              <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-                <CardDescription>Configure system parameters</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-[var(--color-text-body)]">
-                  Manage application settings and configurations.
-                </p>
-              </CardContent>
-            </Card>
+            <Link href="/dashboard/admin/users">
+              <Card hover>
+                <CardHeader>
+                  <CardTitle>User Management</CardTitle>
+                  <CardDescription>Manage all users in the system</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[var(--color-text-body)]">
+                    Add, edit, or remove users and manage their roles.
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/dashboard/admin/buildings">
+              <Card hover>
+                <CardHeader>
+                  <CardTitle>Buildings</CardTitle>
+                  <CardDescription>Define buildings and capacity</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[var(--color-text-body)]">
+                    Add buildings and set max capacity for placing chicks.
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/dashboard/admin/batches">
+              <Card hover>
+                <CardHeader>
+                  <CardTitle>Batches</CardTitle>
+                  <CardDescription>Register new batches (lots)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[var(--color-text-body)]">
+                    Record strain, quantity, purchase price and arrival date.
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/dashboard/admin/stock">
+              <Card hover>
+                <CardHeader>
+                  <CardTitle>Stock</CardTitle>
+                  <CardDescription>Inventory: feed, vaccines, vitamins</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[var(--color-text-body)]">
+                    Add and list stock for workers and veterinarians.
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/dashboard/settings">
+              <Card hover>
+                <CardHeader>
+                  <CardTitle>System Settings</CardTitle>
+                  <CardDescription>Configure system parameters</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[var(--color-text-body)]">
+                    Manage application settings and configurations.
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
             <Card hover>
               <CardHeader>
                 <CardTitle>Reports</CardTitle>
