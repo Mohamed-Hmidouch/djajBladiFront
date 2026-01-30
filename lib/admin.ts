@@ -35,6 +35,10 @@ export async function getBuildingById(
 }
 
 /* Batches */
+export async function getBatches(token: string): Promise<BatchResponse[]> {
+  return apiRequest<BatchResponse[]>('/admin/batches', { token });
+}
+
 export async function createBatch(
   token: string,
   body: CreateBatchRequest
@@ -44,6 +48,33 @@ export async function createBatch(
     body: JSON.stringify(body),
     token,
   });
+}
+
+/**
+ * Business rule: building capacity.
+ * If the building has maxCapacity 900 and already contains batches totalling X chickens,
+ * the new batch chickenCount must not exceed (maxCapacity - X).
+ * Throws if chickenCount > available capacity.
+ */
+export async function validateBatchCapacity(
+  token: string,
+  buildingId: number,
+  chickenCount: number
+): Promise<void> {
+  const [building, batches] = await Promise.all([
+    getBuildingById(token, buildingId),
+    getBatches(token),
+  ]);
+  const batchesInBuilding = batches.filter(
+    (b) => b.buildingId === buildingId && b.chickenCount != null
+  );
+  const currentChickens = batchesInBuilding.reduce((sum, b) => sum + b.chickenCount, 0);
+  const available = building.maxCapacity - currentChickens;
+  if (chickenCount > available) {
+    throw new Error(
+      `Batiment "${building.name}" accepte max ${building.maxCapacity} poussins. Deja ${currentChickens} places occupees. Capacite restante: ${available}. Vous ne pouvez pas enregistrer ${chickenCount} poussins.`
+    );
+  }
 }
 
 /* Stock */

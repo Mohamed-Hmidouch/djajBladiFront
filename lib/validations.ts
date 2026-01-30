@@ -118,7 +118,7 @@ export const stockSchema = z.object({
     .max(50, 'Unit must be less than 50 characters'),
 });
 
-/* Admin: Create user (Ouvrier or Veterinaire only) */
+/* Admin: Create user (Admin, Ouvrier, Veterinaire, Client) - phone required */
 export const adminUserCreateSchema = z
   .object({
     firstName: z
@@ -138,25 +138,16 @@ export const adminUserCreateSchema = z
       .string()
       .min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
-    phoneNumber: z.string().optional().or(z.literal('')),
-    role: z.enum([Role.Ouvrier, Role.Veterinaire] as const, {
-      error: 'Role must be Ouvrier or Veterinaire',
-    }),
+    phoneNumber: z
+      .string()
+      .min(1, 'Phone number is required')
+      .regex(/^\+212[5-7]\d{8}$/, 'Please enter a valid Moroccan phone (e.g. +212697110379)'),
+    role: z.nativeEnum(Role, { error: 'Please select a role' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
     path: ['confirmPassword'],
-  })
-  .refine(
-    (data) =>
-      !data.phoneNumber ||
-      data.phoneNumber === '' ||
-      /^\+212[5-7]\d{8}$/.test(data.phoneNumber),
-    {
-      message: 'Please enter a valid Moroccan phone number (e.g., +212697110379)',
-      path: ['phoneNumber'],
-    }
-  );
+  });
 
 export type BuildingFormData = z.infer<typeof buildingSchema>;
 export type BatchFormData = z.infer<typeof batchSchema>;
