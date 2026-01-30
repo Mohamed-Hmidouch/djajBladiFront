@@ -5,10 +5,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Resolver } from 'react-hook-form';
 import Cookies from 'js-cookie';
-import { createBatch, getBuildings } from '@/lib/admin';
+import { createBatch, getBuildings, validateBatchCapacity } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import { batchSchema, type BatchFormData } from '@/lib/validations';
-import { Button, Input, Select, Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui';
+import { Button, Input, Select } from '@/components/ui';
+import {
+  AdminPageShell,
+  AdminPanel,
+} from '@/components/dashboard/AdminPageShell';
 import type { BuildingResponse } from '@/types/admin';
 
 function getToken(): string | null {
@@ -32,7 +36,7 @@ export default function AdminBatchesPage() {
 
   const buildingOptions = [
     { value: '', label: 'No building' },
-    ...buildings.map((b) => ({ value: String(b.id), label: `${b.name} (${b.maxCapacity})` })),
+    ...buildings.map((b) => ({ value: String(b.id), label: `${b.name} (max ${b.maxCapacity})` })),
   ];
 
   const {
@@ -58,14 +62,18 @@ export default function AdminBatchesPage() {
     setSuccessMessage(null);
     const token = getToken();
     if (!token) return;
+    const buildingId = data.buildingId?.trim() ? Number(data.buildingId) : null;
     try {
+      if (buildingId != null && buildingId > 0) {
+        await validateBatchCapacity(token, buildingId, data.chickenCount);
+      }
       await createBatch(token, {
         batchNumber: data.batchNumber,
         strain: data.strain,
         chickenCount: data.chickenCount,
         arrivalDate: data.arrivalDate,
         purchasePrice: data.purchasePrice,
-        ...(data.buildingId?.trim() && { buildingId: Number(data.buildingId) }),
+        ...(buildingId != null && { buildingId }),
         ...(data.notes?.trim() && { notes: data.notes.trim() }),
       });
       setSuccessMessage('Batch registered successfully.');
@@ -81,6 +89,8 @@ export default function AdminBatchesPage() {
     } catch (err) {
       if (err instanceof ApiError) {
         setServerError(err.message);
+      } else if (err instanceof Error) {
+        setServerError(err.message);
       } else {
         setServerError('Failed to register batch. Please try again.');
       }
@@ -88,61 +98,58 @@ export default function AdminBatchesPage() {
   };
 
   return (
-    <div className="space-y-[var(--space-xl)]">
-      <div>
-        <h1 className="text-[var(--text-h1-size)] font-bold text-[var(--color-text-primary)] leading-tight">
-          Batches (Lots)
-        </h1>
-        <p className="mt-2 text-[var(--color-text-muted)]">
-          Register a new batch with strain, quantity, purchase price and arrival date.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Register batch</CardTitle>
-          <CardDescription>
-            Batch number, strain, chicken count, arrival date, purchase price. Optional: building and notes.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-[var(--space-lg)] max-w-lg">
+    <AdminPageShell
+      title="Batches (Lots)"
+      subtitle="Register a new batch with strain, quantity, purchase price and arrival date. If you assign a building, capacity is checked: the lot cannot exceed remaining space."
+      accent="batches"
+    >
+      <div className="max-w-2xl">
+        <AdminPanel
+          title="Register batch"
+          description="Batch number, strain, chicken count, arrival date, purchase price. Optional: building (capacity checked) and notes."
+          accent="batches"
+        >
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-[var(--space-lg)]">
             {serverError && (
-              <div className="p-4 text-sm text-[var(--color-brand)] bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-[var(--radius-md)]">
+              <div className="p-4 text-sm text-[var(--color-brand)] bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl">
                 {serverError}
               </div>
             )}
             {successMessage && (
-              <div className="p-4 text-sm text-[var(--color-primary)] bg-[var(--color-surface-3)] border border-[var(--color-border)] rounded-[var(--radius-md)]">
+              <div className="p-4 text-sm text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                 {successMessage}
               </div>
             )}
-            <Input
-              label="Batch number"
-              placeholder="e.g. BL-2026-001"
-              error={errors.batchNumber?.message}
-              {...register('batchNumber')}
-            />
-            <Input
-              label="Strain"
-              placeholder="e.g. Cobb 500"
-              error={errors.strain?.message}
-              {...register('strain')}
-            />
-            <Input
-              label="Chicken count"
-              type="number"
-              min={1}
-              placeholder="2000"
-              error={errors.chickenCount?.message}
-              {...register('chickenCount', { valueAsNumber: true })}
-            />
-            <Input
-              label="Arrival date"
-              type="date"
-              error={errors.arrivalDate?.message}
-              {...register('arrivalDate')}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Batch number"
+                placeholder="e.g. BL-2026-001"
+                error={errors.batchNumber?.message}
+                {...register('batchNumber')}
+              />
+              <Input
+                label="Strain"
+                placeholder="e.g. Cobb 500"
+                error={errors.strain?.message}
+                {...register('strain')}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Chicken count"
+                type="number"
+                min={1}
+                placeholder="2000"
+                error={errors.chickenCount?.message}
+                {...register('chickenCount', { valueAsNumber: true })}
+              />
+              <Input
+                label="Arrival date"
+                type="date"
+                error={errors.arrivalDate?.message}
+                {...register('arrivalDate')}
+              />
+            </div>
             <Input
               label="Purchase price"
               type="number"
@@ -170,7 +177,7 @@ export default function AdminBatchesPage() {
               <textarea
                 id="notes"
                 rows={3}
-                className="w-full px-4 py-3 text-base text-[var(--color-text-body)] bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-[var(--radius-md)] outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-opacity-20 placeholder:text-[var(--color-text-muted)]"
+                className="w-full px-4 py-3 text-base text-[var(--color-text-body)] bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-xl outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-opacity-20 placeholder:text-[var(--color-text-muted)] transition-shadow"
                 placeholder="Premier lot de l'annee"
                 {...register('notes')}
               />
@@ -178,7 +185,7 @@ export default function AdminBatchesPage() {
                 <p className="mt-2 text-sm text-[var(--color-brand)]">{errors.notes.message}</p>
               )}
             </div>
-            <div className="flex gap-[var(--space-md)]">
+            <div className="flex gap-3">
               <Button type="submit" isLoading={isSubmitting}>
                 Register batch
               </Button>
@@ -187,8 +194,8 @@ export default function AdminBatchesPage() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
-    </div>
+        </AdminPanel>
+      </div>
+    </AdminPageShell>
   );
 }

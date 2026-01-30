@@ -9,7 +9,14 @@ import Cookies from 'js-cookie';
 import { createBuilding, getBuildings } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import { buildingSchema, type BuildingFormData } from '@/lib/validations';
-import { Button, Input, Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
+import {
+  AdminPageShell,
+  AdminPanel,
+  AdminBentoGrid,
+  AdminBentoForm,
+  AdminBentoList,
+} from '@/components/dashboard/AdminPageShell';
 import type { BuildingResponse } from '@/types/admin';
 
 function getToken(): string | null {
@@ -77,126 +84,120 @@ export default function AdminBuildingsPage() {
   };
 
   return (
-    <div className="space-y-[var(--space-xl)]">
-      <div>
-        <h1 className="text-[var(--text-h1-size)] font-bold text-[var(--color-text-primary)] leading-tight">
-          Buildings
-        </h1>
-        <p className="mt-2 text-[var(--color-text-muted)]">
-          Define buildings and their maximum capacity for placing chicks.
-        </p>
-      </div>
-
-      {/* Create form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Add building</CardTitle>
-          <CardDescription>Name, capacity and optional image URL.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-[var(--space-lg)] max-w-lg">
-            {serverError && (
-              <div className="p-4 text-sm text-[var(--color-brand)] bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-[var(--radius-md)]">
-                {serverError}
-              </div>
-            )}
-            {successMessage && (
-              <div className="p-4 text-sm text-[var(--color-primary)] bg-[var(--color-surface-3)] border border-[var(--color-border)] rounded-[var(--radius-md)]">
-                {successMessage}
-              </div>
-            )}
-            <Input
-              label="Name"
-              placeholder="e.g. Batiment A"
-              error={errors.name?.message}
-              {...register('name')}
-            />
-            <Input
-              label="Max capacity (poussins)"
-              type="number"
-              min={1}
-              placeholder="5000"
-              error={errors.maxCapacity?.message}
-              {...register('maxCapacity', { valueAsNumber: true })}
-            />
-            <Input
-              label="Image URL (optional)"
-              placeholder="https://..."
-              error={errors.imageUrl?.message}
-              {...register('imageUrl')}
-            />
-            <div className="flex gap-[var(--space-md)]">
-              <Button type="submit" isLoading={isSubmitting}>
-                Add building
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => reset()}>
-                Reset
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All buildings</CardTitle>
-          <CardDescription>Buildings and their capacity.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-[var(--space-2xl)]">
-              <div className="animate-spin w-8 h-8 border-4 border-[var(--color-brand)] border-t-transparent rounded-full" />
-            </div>
-          ) : list.length === 0 ? (
-            <p className="py-[var(--space-2xl)] text-[var(--color-text-muted)] text-center">
-              No buildings yet. Add one above.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[var(--space-lg)]">
-              {list.map((b) => (
-                <div
-                  key={b.id}
-                  className="bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-[var(--space-lg)] transition-all duration-200 hover:shadow-[var(--shadow-md)]"
-                >
-                  {b.imageUrl ? (
-                    <div className="relative w-full aspect-video rounded-[var(--radius-md)] overflow-hidden mb-[var(--space-md)] bg-[var(--color-surface-3)]">
-                      <Image
-                        src={b.imageUrl}
-                        alt={b.name}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 33vw"
-                        unoptimized
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full aspect-video rounded-[var(--radius-md)] bg-[var(--color-surface-3)] flex items-center justify-center mb-[var(--space-md)]">
-                      <svg
-                        className="w-12 h-12 text-[var(--color-text-muted)]"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                        />
-                      </svg>
-                    </div>
-                  )}
-                  <h3 className="font-semibold text-[var(--color-text-primary)]">{b.name}</h3>
-                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                    Max capacity: {b.maxCapacity.toLocaleString()} poussins
-                  </p>
+    <AdminPageShell
+      title="Buildings"
+      subtitle="Define buildings and their maximum capacity for placing chicks. Add a new building or browse the list below."
+      accent="primary"
+    >
+      <AdminBentoGrid>
+        <AdminBentoForm>
+          <AdminPanel
+            title="Add building"
+            description="Name, capacity and optional image URL."
+            accent="primary"
+          >
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-[var(--space-lg)]">
+              {serverError && (
+                <div className="p-4 text-sm text-[var(--color-brand)] bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl">
+                  {serverError}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+              )}
+              {successMessage && (
+                <div className="p-4 text-sm text-[var(--color-primary)] bg-[var(--color-surface-3)] border border-[var(--color-border)] rounded-xl">
+                  {successMessage}
+                </div>
+              )}
+              <Input
+                label="Name"
+                placeholder="e.g. Batiment A"
+                error={errors.name?.message}
+                {...register('name')}
+              />
+              <Input
+                label="Max capacity (poussins)"
+                type="number"
+                min={1}
+                placeholder="5000"
+                error={errors.maxCapacity?.message}
+                {...register('maxCapacity', { valueAsNumber: true })}
+              />
+              <Input
+                label="Image URL (optional)"
+                placeholder="https://..."
+                error={errors.imageUrl?.message}
+                {...register('imageUrl')}
+              />
+              <div className="flex gap-3">
+                <Button type="submit" isLoading={isSubmitting}>
+                  Add building
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => reset()}>
+                  Reset
+                </Button>
+              </div>
+            </form>
+          </AdminPanel>
+        </AdminBentoForm>
+        <AdminBentoList>
+          <AdminPanel
+            title="All buildings"
+            description="Buildings and their capacity."
+            accent="primary"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="animate-spin w-10 h-10 border-4 border-[var(--color-primary)] border-t-transparent rounded-full" />
+              </div>
+            ) : list.length === 0 ? (
+              <p className="py-16 text-[var(--color-text-muted)] text-center">
+                No buildings yet. Add one in the form.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {list.map((b) => (
+                  <article
+                    key={b.id}
+                    className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-4 transition-all duration-300 hover:border-[var(--color-primary)]/40 hover:shadow-lg hover:-translate-y-0.5"
+                  >
+                    {b.imageUrl ? (
+                      <div className="relative w-full aspect-video rounded-lg overflow-hidden mb-3 bg-[var(--color-surface-3)]">
+                        <Image
+                          src={b.imageUrl}
+                          alt={b.name}
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          sizes="(max-width: 768px) 100vw, 50vw"
+                          unoptimized
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full aspect-video rounded-lg bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-brand)]/5 flex items-center justify-center mb-3">
+                        <svg
+                          className="w-14 h-14 text-[var(--color-text-muted)]"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                    <h3 className="font-semibold text-[var(--color-text-primary)]">{b.name}</h3>
+                    <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                      Max: {b.maxCapacity.toLocaleString()} poussins
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </AdminPanel>
+        </AdminBentoList>
+      </AdminBentoGrid>
+    </AdminPageShell>
   );
 }
