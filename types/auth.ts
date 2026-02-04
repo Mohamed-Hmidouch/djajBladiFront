@@ -57,7 +57,20 @@ export interface ApiError {
   status: number;
 }
 
-/* Auth State */
+/* ============================================
+   LEGACY: AuthState - DEPRECATED
+   ============================================
+   
+   ⚠️ Ne pas utiliser ce type pour stocker le rôle!
+   
+   Le rôle doit être extrait du JWT via:
+   - getUserRole() from '@/lib/jwt'
+   - getCurrentUser() from '@/lib/jwt'
+   
+   Voir lib/jwt.ts pour l'implémentation sécurisée.
+   ============================================ */
+
+/** @deprecated Use SecureAuthState from useAuth hook instead */
 export interface AuthState {
   user: UserResponse | null;
   token: string | null;

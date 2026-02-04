@@ -45,7 +45,11 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
     try {
       /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-      const { confirmPassword, ...registerData } = data;
+      const { confirmPassword, phoneNumber, ...rest } = data;
+      const registerData = {
+        ...rest,
+        ...(phoneNumber?.trim() && { phoneNumber: phoneNumber.trim() }),
+      };
       const user = await registerUser(registerData);
       onSuccess?.(user);
     } catch (error) {

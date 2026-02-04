@@ -3,7 +3,16 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Cookies from 'js-cookie';
+import { getUserRole, clearTokens, getCurrentUser } from '@/lib/jwt';
+
+/* ============================================
+   SECURE DASHBOARD NAV
+   ============================================
+   
+   Le rôle est extrait du JWT en temps réel.
+   Plus de lecture depuis localStorage/cookies.
+   
+   ============================================ */
 
 export function DashboardNav() {
   const router = useRouter();
@@ -11,19 +20,14 @@ export function DashboardNav() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
-    const role = Cookies.get('djajbladi_role') || localStorage.getItem('djajbladi_role');
+    // SECURITY: Get role from JWT, not localStorage
+    const role = getUserRole();
     setUserRole(role);
   }, []);
 
   const handleLogout = () => {
-    Cookies.remove('djajbladi_token');
-    Cookies.remove('djajbladi_refresh_token');
-    Cookies.remove('djajbladi_role');
-    Cookies.remove('djajbladi_email');
-    localStorage.removeItem('djajbladi_token');
-    localStorage.removeItem('djajbladi_refresh_token');
-    localStorage.removeItem('djajbladi_role');
-    localStorage.removeItem('djajbladi_email');
+    // SECURITY: clearTokens also removes any legacy role/email storage
+    clearTokens();
     router.push('/login');
   };
 
