@@ -1,1 +1,7 @@
-export { AuthProvider, useAuth } from './useAuth';
+export { 
+  AuthProvider, 
+  useAuth, 
+  useRole, 
+  useAnyRole, 
+  useIsAdmin 
+} from './useAuth';

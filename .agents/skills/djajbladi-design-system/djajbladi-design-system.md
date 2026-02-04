@@ -257,6 +257,44 @@ module.exports = {
 
 ---
 
+1. La Typographie de Caractère
+
+    Éviter les polices système : Bannir les polices par défaut comme Arial ou Inter qui crient "logiciel générique".
+
+    Privilégier des fontes avec de la personnalité : Utiliser des polices comme Plus Jakarta Sans, Satoshi ou Quicksand pour un aspect plus moderne et accueillant.
+
+    Le contraste des tailles : Jouer sur des titres très grands et des textes de corps aérés pour créer un rythme visuel clair.
+
+2. Palette Chromatique Organique (Earth Tones)
+
+    Adieu au "Blanc Clinique" : Remplacer le blanc pur (#FFFFFF) par un blanc cassé ou une couleur crème (#F9F8F6) pour réduire la fatigue visuelle.
+
+    Couleurs de la Terre : Utiliser des verts profonds, des oranges brûlés et des bruns doux. Cela rappelle le secteur de l'élevage et de la nature de djajBladi.
+
+    Profondeur par les ombres : Utiliser des ombres très diffuses et légères au lieu de bordures noires solides pour donner un aspect "flottant" et élégant aux éléments.
+
+3. Structure en "Bento Grid" (Hiérarchie Dynamique)
+
+    Casser la monotonie : Au lieu de cartes identiques alignées, utiliser des blocs de tailles différentes. Un grand bloc pour l'information principale, des petits blocs pour les statistiques secondaires.
+
+    Espace négatif (White Space) : Laisser respirer les éléments. Un design qui ne semble pas "chargé" est un design qui paraît plus professionnel et moins automatisé.
+
+4. Micro-Interactions et Retours Visuels
+
+    Effets de survol (Hover) subtils : Ajouter des transitions fluides (légère élévation ou changement de teinte) quand l'utilisateur passe la souris sur un élément interactif.
+
+    Loaders personnalisés : Remplacer le cercle de chargement classique par une petite animation thématique (un poussin qui bouge, une icône de ferme) pour créer un lien émotionnel.
+
+5. Micro-Copy et Ton de Voix Humain
+
+    Langage conversationnel : Remplacer les messages d'erreur ou de succès techniques par des phrases chaleureuses. Par exemple, au lieu de "Succès : Données enregistrées", préférer "C'est noté ! Votre ferme est à jour."
+
+    Identité Locale : Ne pas hésiter à infuser un peu de l'esprit marocain dans les textes pour montrer que derrière le code, il y a une présence locale réelle.
+
+6. États Vides (Empty States) Illustrés
+
+    Combler le vide : Quand une page n'a pas encore de données, ne pas laisser un tableau vide. Utiliser une illustration minimaliste avec un message d'encouragement pour guider l'utilisateur.
+
 ## 4. COMPONENT PHYSICS (Micro-Interactions)
 
 ### Buttons

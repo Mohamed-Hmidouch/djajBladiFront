@@ -54,15 +54,28 @@ export async function apiRequest<T>(
   if (!response.ok) {
     const errorData = data as { errors?: Record<string, string>; error?: string; message?: string } | null;
     
-    /* Handle validation errors */
-    if (errorData?.errors) {
+    /* Handle validation errors (e.g. { errors: { email: "..." } }) */
+    if (errorData?.errors && typeof errorData.errors === 'object') {
       const firstError = Object.values(errorData.errors)[0] || 'Validation failed';
       throw new ApiError(firstError, response.status, errorData.errors);
     }
     
-    /* Handle general errors */
-    const message = errorData?.error || errorData?.message || `Request failed with status ${response.status}`;
-    throw new ApiError(message, response.status);
+    /* Handle explicit error/message from backend */
+    const explicitMessage = errorData?.error || errorData?.message;
+    if (explicitMessage && typeof explicitMessage === 'string') {
+      throw new ApiError(explicitMessage, response.status);
+    }
+    
+    /* 400 with empty or unknown body: common when e.g. email already exists */
+    if (response.status === 400) {
+      throw new ApiError(
+        'Bad request. Check your input (e.g. this email may already be in use, or a field is invalid).',
+        response.status
+      );
+    }
+    
+    /* Fallback for other status codes */
+    throw new ApiError(`Request failed with status ${response.status}`, response.status);
   }
 
   return data as T;

@@ -4,11 +4,24 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import Cookies from 'js-cookie';
 import { loginSchema, type LoginFormData } from '@/lib/validations';
 import { loginUser } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
+import { storeTokens } from '@/lib/jwt';
 import { Button, Input } from '@/components/ui';
+
+/* ============================================
+   SECURE LOGIN FORM
+   ============================================
+   
+   ⚠️ SECURITY: Ce formulaire stocke UNIQUEMENT les tokens JWT.
+   
+   Le rôle n'est JAMAIS stocké séparément car:
+   1. Un utilisateur pourrait le modifier dans localStorage
+   2. Le rôle doit être extrait du JWT à chaque vérification
+   3. Le JWT est signé - toute modification invalide la signature
+   
+   ============================================ */
 
 interface LoginFormProps {
   onSuccess?: (token: string) => void;
@@ -36,23 +49,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     try {
       const response = await loginUser(data);
       
-      /* Store tokens based on Remember Me */
-      const cookieOptions = rememberMe 
-        ? { expires: 7, secure: true, sameSite: 'strict' as const }
-        : { secure: true, sameSite: 'strict' as const };
-
-      Cookies.set('djajbladi_token', response.token, cookieOptions);
-      Cookies.set('djajbladi_refresh_token', response.refreshToken, { expires: 7, secure: true, sameSite: 'strict' as const });
-      Cookies.set('djajbladi_role', response.role, cookieOptions);
-      Cookies.set('djajbladi_email', response.email, cookieOptions);
-
-      /* Also store in localStorage for persistence */
-      if (rememberMe) {
-        localStorage.setItem('djajbladi_token', response.token);
-        localStorage.setItem('djajbladi_refresh_token', response.refreshToken);
-        localStorage.setItem('djajbladi_role', response.role);
-        localStorage.setItem('djajbladi_email', response.email);
-      }
+      /* 
+       * SECURITY: Store ONLY the tokens
+       * Role and email are extracted from JWT when needed
+       * This prevents manual role manipulation via localStorage
+       */
+      storeTokens(response.token, response.refreshToken, rememberMe);
       
       onSuccess?.(response.token);
     } catch (error) {

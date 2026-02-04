@@ -6,26 +6,59 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   type ReactNode,
 } from 'react';
-import Cookies from 'js-cookie';
 import { loginUser, registerUser } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
+import {
+  getToken,
+  getCurrentUser,
+  getUserRole,
+  hasRole,
+  hasAnyRole,
+  isAuthenticated as checkIsAuthenticated,
+  storeTokens,
+  clearTokens,
+  isTokenExpired,
+  getTokenExpirationTime,
+  type DecodedUser,
+} from '@/lib/jwt';
 import type {
-  AuthState,
   JwtResponse,
   LoginRequest,
   RegisterRequest,
   UserResponse,
 } from '@/types/auth';
 
-const TOKEN_KEY = 'djajbladi_token';
-const REFRESH_TOKEN_KEY = 'djajbladi_refresh_token';
+/* ============================================
+   SECURE AUTH STATE
+   ============================================
+   Le rôle est TOUJOURS extrait du JWT, jamais stocké séparément.
+   Cela empêche la manipulation manuelle du rôle via localStorage.
+   ============================================ */
 
-interface AuthContextValue extends AuthState {
-  login: (data: LoginRequest) => Promise<JwtResponse>;
+interface SecureAuthState {
+  user: DecodedUser | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
+
+interface AuthContextValue extends SecureAuthState {
+  /* Auth actions */
+  login: (data: LoginRequest, remember?: boolean) => Promise<JwtResponse>;
   register: (data: RegisterRequest) => Promise<UserResponse>;
   logout: () => void;
+  
+  /* Secure role checking - always from JWT */
+  getRole: () => string | null;
+  checkRole: (role: string) => boolean;
+  checkAnyRole: (roles: string[]) => boolean;
+  
+  /* Token utilities */
+  refreshAuthState: () => void;
+  getTimeUntilExpiry: () => number | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -35,51 +68,76 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [state, setState] = useState<AuthState>({
+  const [state, setState] = useState<SecureAuthState>({
     user: null,
     token: null,
     isAuthenticated: false,
     isLoading: true,
   });
 
-  /* Initialize auth state from stored token */
-  useEffect(() => {
-    const token = Cookies.get(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+  /* Initialize and refresh auth state from JWT */
+  const refreshAuthState = useCallback(() => {
+    const token = getToken();
     
-    if (token) {
+    if (token && !isTokenExpired(token)) {
+      const user = getCurrentUser();
       setState({
-        user: null,
+        user,
         token,
         isAuthenticated: true,
         isLoading: false,
       });
     } else {
-      setState((prev) => ({ ...prev, isLoading: false }));
+      // Token missing or expired - clear everything
+      if (token && isTokenExpired(token)) {
+        clearTokens();
+      }
+      setState({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
     }
   }, []);
 
-  const setTokens = useCallback((token: string, refreshToken: string) => {
-    /* Store in both cookie (for SSR) and localStorage (for client) */
-    Cookies.set(TOKEN_KEY, token, { expires: 1, secure: true, sameSite: 'strict' });
-    Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 7, secure: true, sameSite: 'strict' });
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-  }, []);
+  /* Initialize on mount */
+  useEffect(() => {
+    refreshAuthState();
+  }, [refreshAuthState]);
 
-  const clearTokens = useCallback(() => {
-    Cookies.remove(TOKEN_KEY);
-    Cookies.remove(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-  }, []);
+  /* Auto-refresh when token is about to expire */
+  useEffect(() => {
+    if (!state.token) return;
 
-  const login = useCallback(async (data: LoginRequest): Promise<JwtResponse> => {
+    const timeUntilExpiry = getTokenExpirationTime();
+    if (!timeUntilExpiry || timeUntilExpiry <= 0) return;
+
+    // Refresh state 1 minute before expiry
+    const refreshTimeout = Math.max(timeUntilExpiry - 60000, 0);
+    
+    const timer = setTimeout(() => {
+      refreshAuthState();
+    }, refreshTimeout);
+
+    return () => clearTimeout(timer);
+  }, [state.token, refreshAuthState]);
+
+  /* Login - stores tokens securely, extracts role from JWT */
+  const login = useCallback(async (
+    data: LoginRequest, 
+    remember: boolean = false
+  ): Promise<JwtResponse> => {
     try {
       const response = await loginUser(data);
-      setTokens(response.token, response.refreshToken);
       
+      // Store only the tokens - role comes from JWT
+      storeTokens(response.token, response.refreshToken, remember);
+      
+      // Update state with user info from JWT
+      const user = getCurrentUser();
       setState({
-        user: null,
+        user,
         token: response.token,
         isAuthenticated: true,
         isLoading: false,
@@ -92,8 +150,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       throw new Error('Login failed');
     }
-  }, [setTokens]);
+  }, []);
 
+  /* Register - no token storage, user must login after */
   const register = useCallback(async (data: RegisterRequest): Promise<UserResponse> => {
     try {
       const user = await registerUser(data);
@@ -106,6 +165,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  /* Logout - clears all tokens and legacy storage */
   const logout = useCallback(() => {
     clearTokens();
     setState({
@@ -114,18 +174,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAuthenticated: false,
       isLoading: false,
     });
-  }, [clearTokens]);
+  }, []);
 
-  const value: AuthContextValue = {
+  /* Secure role getters - always from JWT */
+  const getRole = useCallback(() => getUserRole(), []);
+  const checkRole = useCallback((role: string) => hasRole(role), []);
+  const checkAnyRole = useCallback((roles: string[]) => hasAnyRole(roles), []);
+  const getTimeUntilExpiry = useCallback(() => getTokenExpirationTime(), []);
+
+  const value: AuthContextValue = useMemo(() => ({
     ...state,
     login,
     register,
     logout,
-  };
+    getRole,
+    checkRole,
+    checkAnyRole,
+    refreshAuthState,
+    getTimeUntilExpiry,
+  }), [
+    state,
+    login,
+    register,
+    logout,
+    getRole,
+    checkRole,
+    checkAnyRole,
+    refreshAuthState,
+    getTimeUntilExpiry,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/* Main hook for authentication */
 export function useAuth() {
   const context = useContext(AuthContext);
   
@@ -134,4 +216,33 @@ export function useAuth() {
   }
   
   return context;
+}
+
+/* ============================================
+   CONVENIENCE HOOKS FOR ROLE CHECKING
+   ============================================ */
+
+/**
+ * Hook to check if user has a specific role
+ * Role is ALWAYS extracted from JWT in real-time
+ */
+export function useRole(requiredRole: string): boolean {
+  const { checkRole, isAuthenticated } = useAuth();
+  return isAuthenticated && checkRole(requiredRole);
+}
+
+/**
+ * Hook to check if user has any of the specified roles
+ */
+export function useAnyRole(roles: string[]): boolean {
+  const { checkAnyRole, isAuthenticated } = useAuth();
+  return isAuthenticated && checkAnyRole(roles);
+}
+
+/**
+ * Hook to check if user is an Admin
+ * Shortcut for useRole('Admin')
+ */
+export function useIsAdmin(): boolean {
+  return useRole('Admin');
 }
