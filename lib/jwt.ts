@@ -32,11 +32,10 @@ import Cookies from 'js-cookie';
 const TOKEN_KEY = 'djajbladi_token';
 const REFRESH_TOKEN_KEY = 'djajbladi_refresh_token';
 
-/* JWT Payload structure from backend */
+/* JWT Payload structure from backend (Spring Security) */
 export interface JwtPayload {
-  sub: string;          // Subject (user email)
-  email: string;        // User email
-  role: string;         // User role (Admin, Client, etc.)
+  sub: string;          // Subject = user email (Spring uses 'sub', not 'email')
+  role: string;         // User role (Admin, Client, Veterinaire, Ouvrier)
   iat: number;          // Issued at (timestamp)
   exp: number;          // Expiration (timestamp)
 }
@@ -79,8 +78,9 @@ export function decodeToken(token: string): TokenResult<JwtPayload> {
   try {
     const decoded = jwtDecode<JwtPayload>(token);
     
-    // Validate required fields exist
-    if (!decoded.role || !decoded.email) {
+    // Validate required fields exist (Spring uses 'sub' for email)
+    if (!decoded.role || !decoded.sub) {
+      console.warn('[JWT] Token missing required fields:', { role: decoded.role, sub: decoded.sub });
       return { 
         success: false, 
         error: 'Token invalide: champs requis manquants' 
@@ -88,7 +88,8 @@ export function decodeToken(token: string): TokenResult<JwtPayload> {
     }
     
     return { success: true, data: decoded };
-  } catch {
+  } catch (err) {
+    console.error('[JWT] Decode error:', err);
     return { 
       success: false, 
       error: 'Token invalide ou corrompu' 
@@ -117,14 +118,23 @@ export function isTokenExpired(token: string): boolean {
  */
 export function getCurrentUser(): DecodedUser | null {
   const token = getToken();
-  if (!token) return null;
+  if (!token) {
+    console.log('[JWT] No token found');
+    return null;
+  }
   
   const result = decodeToken(token);
-  if (!result.success) return null;
+  if (!result.success) {
+    console.log('[JWT] Token decode failed:', result.error);
+    return null;
+  }
   
-  const { email, role, exp } = result.data;
+  // Note: Spring Security uses 'sub' for email, not 'email'
+  const { sub: email, role, exp } = result.data;
   const expiresAt = new Date(exp * 1000);
   const isExpired = isTokenExpired(token);
+  
+  console.log('[JWT] User extracted:', { email, role, isExpired });
   
   return {
     email,
@@ -140,7 +150,15 @@ export function getCurrentUser(): DecodedUser | null {
  */
 export function getUserRole(): string | null {
   const user = getCurrentUser();
-  if (!user || user.isExpired) return null;
+  if (!user) {
+    console.log('[JWT] getUserRole: No user found');
+    return null;
+  }
+  if (user.isExpired) {
+    console.log('[JWT] getUserRole: Token expired');
+    return null;
+  }
+  console.log('[JWT] getUserRole:', user.role);
   return user.role;
 }
 
@@ -180,23 +198,32 @@ export function storeTokens(
   refreshToken: string, 
   remember: boolean = false
 ): void {
-  const cookieOptions = remember
-    ? { expires: 7, secure: true, sameSite: 'strict' as const }
-    : { secure: true, sameSite: 'strict' as const };
+  console.log('[JWT] Storing tokens, remember:', remember);
+  
+  // Check if we're on HTTPS (secure cookies only work on HTTPS)
+  const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  
+  const cookieOptions = {
+    expires: remember ? 7 : 1, // 7 days if remember, 1 day otherwise
+    secure: isSecure,
+    sameSite: 'lax' as const, // 'lax' is more compatible than 'strict'
+    path: '/',
+  };
 
-  // Always store in cookies (for SSR compatibility)
+  // Store in cookies
   Cookies.set(TOKEN_KEY, token, cookieOptions);
-  Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { 
-    expires: 7, 
-    secure: true, 
-    sameSite: 'strict' as const 
+  Cookies.set(REFRESH_TOKEN_KEY, refreshToken, {
+    ...cookieOptions,
+    expires: 7, // Refresh token always 7 days
   });
 
-  // Store in localStorage only if "Remember Me" is enabled
-  if (remember) {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-  }
+  // ALWAYS store in localStorage as fallback (cookies can fail on localhost)
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  
+  // Verify storage worked
+  const storedToken = getToken();
+  console.log('[JWT] Token stored successfully:', !!storedToken);
 }
 
 /**
