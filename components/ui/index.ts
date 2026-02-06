@@ -1,4 +1,5 @@
 export { Button } from './Button';
 export { Input } from './Input';
 export { Select } from './Select';
+export { PhoneInput, countryCodes, type CountryCode } from './PhoneInput';
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './Card';
