@@ -1,6 +1,11 @@
 /* API Configuration and Base Fetch Wrapper */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
+/**
+ * API requests go through Next.js rewrites proxy.
+ * This eliminates CORS issues and hides the backend URL from the client.
+ * The proxy is configured in next.config.ts
+ */
+const API_BASE_URL = '';
 
 export class ApiError extends Error {
   status: number;
@@ -37,7 +42,6 @@ export async function apiRequest<T>(
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...fetchOptions,
     headers,
-    credentials: 'include',
   });
 
   /* Handle empty responses */
@@ -54,28 +58,15 @@ export async function apiRequest<T>(
   if (!response.ok) {
     const errorData = data as { errors?: Record<string, string>; error?: string; message?: string } | null;
     
-    /* Handle validation errors (e.g. { errors: { email: "..." } }) */
-    if (errorData?.errors && typeof errorData.errors === 'object') {
+    /* Handle validation errors */
+    if (errorData?.errors) {
       const firstError = Object.values(errorData.errors)[0] || 'Validation failed';
       throw new ApiError(firstError, response.status, errorData.errors);
     }
     
-    /* Handle explicit error/message from backend */
-    const explicitMessage = errorData?.error || errorData?.message;
-    if (explicitMessage && typeof explicitMessage === 'string') {
-      throw new ApiError(explicitMessage, response.status);
-    }
-    
-    /* 400 with empty or unknown body: common when e.g. email already exists */
-    if (response.status === 400) {
-      throw new ApiError(
-        'Bad request. Check your input (e.g. this email may already be in use, or a field is invalid).',
-        response.status
-      );
-    }
-    
-    /* Fallback for other status codes */
-    throw new ApiError(`Request failed with status ${response.status}`, response.status);
+    /* Handle general errors */
+    const message = errorData?.error || errorData?.message || `Request failed with status ${response.status}`;
+    throw new ApiError(message, response.status);
   }
 
   return data as T;
