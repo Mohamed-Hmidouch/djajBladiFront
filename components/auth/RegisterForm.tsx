@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { registerSchema, type RegisterFormData } from '@/lib/validations';
 import { registerUser } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
-import { Button, Input, Select } from '@/components/ui';
+import { Button, Input, Select, PhoneInput } from '@/components/ui';
 import { Role, type UserResponse } from '@/types/auth';
 
 interface RegisterFormProps {
@@ -26,6 +26,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -98,13 +99,18 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         {...register('email')}
       />
 
-      <Input
-        label="Phone Number (Optional)"
-        type="tel"
-        placeholder="+212 600 000 000"
-        autoComplete="tel"
-        error={errors.phoneNumber?.message}
-        {...register('phoneNumber')}
+      <Controller
+        name="phoneNumber"
+        control={control}
+        render={({ field }) => (
+          <PhoneInput
+            label="Numéro de téléphone (Optionnel)"
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.phoneNumber?.message}
+            defaultCountryCode="MA"
+          />
+        )}
       />
 
       <Select
