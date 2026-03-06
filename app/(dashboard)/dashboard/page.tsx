@@ -27,6 +27,7 @@ import type {
   SupervisionDashboardResponse,
   BatchDailySummary,
   HealthAlertSummary,
+  BatchFcrSummary,
 } from '@/types/admin';
 import type { UserResponse } from '@/types/auth';
 
@@ -301,6 +302,26 @@ function BatchMiniChart({
   );
 }
 
+function fcrColor(status: string | null | undefined): string {
+  switch (status) {
+    case 'EXCELLENT': return 'text-emerald-600 bg-emerald-50 border-emerald-100';
+    case 'BON': return 'text-amber-600 bg-amber-50 border-amber-100';
+    case 'ALERTE': return 'text-[var(--color-brand)] bg-[var(--color-brand)]/5 border-[var(--color-brand)]/20';
+    case 'CRITIQUE': return 'text-red-700 bg-red-50 border-red-100';
+    default: return 'text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border-[var(--color-border)]';
+  }
+}
+
+function fcrLabel(status: string | null | undefined): string {
+  switch (status) {
+    case 'EXCELLENT': return 'Excellent';
+    case 'BON': return 'Bon';
+    case 'ALERTE': return 'Alerte';
+    case 'CRITIQUE': return 'Critique';
+    default: return 'N/D';
+  }
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -411,6 +432,14 @@ export default function DashboardPage() {
     acc[s.batchNumber].push(s);
     return acc;
   }, {});
+
+  /* FCR: average FCR across active batches */
+  const fcrSummaries: BatchFcrSummary[] = supervision?.fcrSummaries || [];
+  const fcrWithData = fcrSummaries.filter(f => f.cumulativeFcr != null);
+  const avgFcr = fcrWithData.length > 0
+    ? fcrWithData.reduce((sum, f) => sum + (f.cumulativeFcr ?? 0), 0) / fcrWithData.length
+    : null;
+  const fcrAlertCount = fcrSummaries.filter(f => f.fcrAlert).length;
 
   if (user?.role !== 'Admin') {
     return (
@@ -720,7 +749,88 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ============ ROW 6: BATCH CHARTS ============ */}
+      {/* ============ ROW 6: FCR (Indice de Consommation) ============ */}
+      {supervision && fcrSummaries.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">
+                ICR — Indice de Consommation
+              </h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                FCR cumule par lot actif · seuil alerte 1.8
+                {avgFcr != null && (
+                  <span className="ml-2 font-semibold">
+                    · moy. <span className={avgFcr > 1.8 ? 'text-[var(--color-brand)]' : 'text-emerald-600'}>{avgFcr.toFixed(2)}</span>
+                  </span>
+                )}
+              </p>
+            </div>
+            {fcrAlertCount > 0 && (
+              <span className="px-2.5 py-1 bg-[var(--color-brand)]/15 text-[var(--color-brand)] text-xs font-bold rounded-full animate-pulse">
+                {fcrAlertCount} alerte{fcrAlertCount > 1 ? 's' : ''} ICR
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {fcrSummaries.map((fcr) => {
+              const colorClasses = fcrColor(fcr.fcrStatus);
+              const label = fcrLabel(fcr.fcrStatus);
+              return (
+                <div
+                  key={fcr.batchId}
+                  className={`rounded-2xl border p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${
+                    fcr.fcrAlert
+                      ? 'border-[var(--color-brand)]/25 bg-gradient-to-br from-[var(--color-surface-1)] to-[var(--color-brand)]/[0.03]'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface-1)]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-bold text-[var(--color-text-primary)] text-sm">{fcr.batchNumber}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{fcr.strain || 'Souche inconnue'} · J{fcr.ageInDays}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${colorClasses}`}>
+                      {label}
+                    </span>
+                  </div>
+
+                  <div className="flex items-end gap-2 mb-3">
+                    <span className={`text-3xl font-extrabold tabular-nums leading-none ${
+                      fcr.fcrAlert ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-primary)]'
+                    }`}>
+                      {fcr.cumulativeFcr != null ? fcr.cumulativeFcr.toFixed(2) : '—'}
+                    </span>
+                    <span className="text-xs text-[var(--color-text-muted)] mb-1">ICR</span>
+                    {fcr.fcrAlert && (
+                      <svg className="w-4 h-4 text-[var(--color-brand)] mb-1 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-[var(--color-surface-2)]/60 rounded-lg p-2">
+                      <p className="text-xs font-bold text-[var(--color-text-primary)] tabular-nums">{fcr.aliveChickens.toLocaleString()}</p>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">vivants</p>
+                    </div>
+                    <div className="bg-[var(--color-surface-2)]/60 rounded-lg p-2">
+                      <p className="text-xs font-bold text-amber-600 tabular-nums">{fcr.totalFeedConsumedKg.toFixed(0)} kg</p>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">alim. tot.</p>
+                    </div>
+                    <div className="bg-[var(--color-surface-2)]/60 rounded-lg p-2">
+                      <p className="text-xs font-bold text-sky-600 tabular-nums">{fcr.estimatedWeightKg.toFixed(2)} kg</p>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">poids est.</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ============ ROW 7: BATCH CHARTS ============ */}
       {supervision && Object.keys(summariesByBatch).length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -749,6 +859,7 @@ export default function DashboardPage() {
               const totalFeed = feedValues.reduce((a, b) => a + b, 0);
               const totalMort = mortValues.reduce((a, b) => a + b, 0);
               const anomalyCount = summaries.filter(s => s.abnormalConsumption).length;
+              const batchFcr = fcrSummaries.find(f => f.batchNumber === batchNum);
               return (
                 <div
                   key={batchNum}
@@ -804,6 +915,14 @@ export default function DashboardPage() {
                         </span>
                         <span className="text-xs text-[var(--color-text-muted)]">/j</span>
                       </div>
+                      {batchFcr?.cumulativeFcr != null && (
+                        <>
+                          <div className="w-px h-4 bg-[var(--color-border)]" />
+                          <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-bold border ${fcrColor(batchFcr.fcrStatus)}`}>
+                            ICR {batchFcr.cumulativeFcr.toFixed(2)}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -822,7 +941,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ============ ROW 7: HEALTH ALERTS ============ */}
+      {/* ============ ROW 8: HEALTH ALERTS ============ */}
       {supervision && pendingAlerts.length > 0 && (
         <div className="bg-[var(--color-surface-1)] rounded-2xl border border-purple-200 overflow-hidden">
           <div className="px-5 py-3 border-b border-purple-100 bg-gradient-to-r from-purple-500/10 to-transparent flex items-center justify-between">

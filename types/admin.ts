@@ -181,6 +181,14 @@ export interface BatchDailySummary {
   mortalityCount: number;
   recordedByName: string;
   abnormalConsumption: boolean;
+  // FCR fields
+  ageInDays: number | null;
+  estimatedWeightKg: number | null;
+  actualWeightKg: number | null;
+  cumulativeFeedKg: number | null;
+  cumulativeFcr: number | null;
+  dailyFcr: number | null;
+  fcrAlert: boolean;
 }
 
 export interface HealthAlertSummary {
@@ -195,9 +203,27 @@ export interface HealthAlertSummary {
   createdAt: string;
 }
 
+export type FcrStatus = 'EXCELLENT' | 'BON' | 'ALERTE' | 'CRITIQUE' | 'INCONNU';
+
+export interface BatchFcrSummary {
+  batchId: number;
+  batchNumber: string;
+  strain: string | null;
+  ageInDays: number;
+  aliveChickens: number;
+  totalFeedConsumedKg: number;
+  estimatedWeightKg: number;
+  actualWeightKg: number | null;
+  cumulativeFcr: number | null;
+  fcrAlert: boolean;
+  fcrThreshold: number;
+  fcrStatus: FcrStatus;
+}
+
 export interface SupervisionDashboardResponse {
   startDate: string;
   endDate: string;
   batchSummaries: BatchDailySummary[];
   pendingAlerts: HealthAlertSummary[];
+  fcrSummaries: BatchFcrSummary[];
 }
