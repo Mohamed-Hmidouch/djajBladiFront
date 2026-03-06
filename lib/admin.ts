@@ -1,7 +1,7 @@
-/* Admin API Service - Buildings, Batches, Stock, Users */
+/* Admin API Service - Buildings, Batches, Stock, Users, Dashboard, Profile */
 
 import { apiRequest } from './api';
-import type { RegisterRequest, UserResponse } from '@/types/auth';
+import type { UserResponse } from '@/types/auth';
 import type {
   BuildingResponse,
   CreateBuildingRequest,
@@ -9,6 +9,16 @@ import type {
   CreateBatchRequest,
   StockItemResponse,
   CreateStockRequest,
+  AdminCreateUserRequest,
+  UpdateProfileRequest,
+  ChangePasswordRequest,
+  SupervisionDashboardResponse,
+  HealthRecordResponse,
+  MortalityResponse,
+  CreateMortalityRequest,
+  FeedingResponse,
+  CreateFeedingRequest,
+  CreateHealthRecordRequest,
 } from '@/types/admin';
 
 /* Buildings */
@@ -103,7 +113,7 @@ export async function getStockItemById(
 /* Users (Admin creates Ouvrier / Veterinaire) */
 export async function createUser(
   token: string,
-  body: RegisterRequest
+  body: AdminCreateUserRequest
 ): Promise<UserResponse> {
   return apiRequest<UserResponse>('/admin/users', {
     method: 'POST',
@@ -114,4 +124,125 @@ export async function createUser(
 
 export async function getUsers(token: string): Promise<UserResponse[]> {
   return apiRequest<UserResponse[]>('/admin/users', { token });
+}
+
+/* Dashboard Supervision */
+export async function getSupervisionDashboard(
+  token: string,
+  startDate?: string
+): Promise<SupervisionDashboardResponse> {
+  const params = startDate ? `?startDate=${startDate}` : '';
+  return apiRequest<SupervisionDashboardResponse>(
+    `/admin/dashboard/supervision${params}`,
+    { token }
+  );
+}
+
+export async function getDashboardAlerts(
+  token: string
+): Promise<HealthRecordResponse[]> {
+  return apiRequest<HealthRecordResponse[]>('/admin/dashboard/alerts', {
+    token,
+  });
+}
+
+export async function approveHealthRecord(
+  token: string,
+  id: number
+): Promise<HealthRecordResponse> {
+  return apiRequest<HealthRecordResponse>(
+    `/admin/dashboard/health-records/${id}/approve`,
+    { method: 'POST', token }
+  );
+}
+
+export async function rejectHealthRecord(
+  token: string,
+  id: number
+): Promise<HealthRecordResponse> {
+  return apiRequest<HealthRecordResponse>(
+    `/admin/dashboard/health-records/${id}/reject`,
+    { method: 'POST', token }
+  );
+}
+
+/* Profile (authenticated user) */
+export async function getProfile(token: string): Promise<UserResponse> {
+  return apiRequest<UserResponse>('/users/me', { token });
+}
+
+export async function updateProfile(
+  token: string,
+  body: UpdateProfileRequest
+): Promise<UserResponse> {
+  return apiRequest<UserResponse>('/users/me', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+export async function changePassword(
+  token: string,
+  body: ChangePasswordRequest
+): Promise<void> {
+  return apiRequest<void>('/users/me/password', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+/* Mortality (Ouvrier / Admin) */
+export async function createMortality(
+  token: string,
+  body: CreateMortalityRequest
+): Promise<MortalityResponse> {
+  return apiRequest<MortalityResponse>('/ouvrier/mortality', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+export async function getMortalities(
+  token: string,
+  batchId?: number
+): Promise<MortalityResponse[]> {
+  const params = batchId ? `?batchId=${batchId}` : '';
+  return apiRequest<MortalityResponse[]>(`/ouvrier/mortality${params}`, {
+    token,
+  });
+}
+
+/* Feeding (Ouvrier / Admin) */
+export async function createFeeding(
+  token: string,
+  body: CreateFeedingRequest
+): Promise<FeedingResponse> {
+  return apiRequest<FeedingResponse>('/ouvrier/feeding', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+export async function getFeedings(
+  token: string,
+  batchId?: number
+): Promise<FeedingResponse[]> {
+  const params = batchId ? `?batchId=${batchId}` : '';
+  return apiRequest<FeedingResponse[]>(`/ouvrier/feeding${params}`, { token });
+}
+
+/* Health Records (Veterinaire) */
+export async function createHealthRecord(
+  token: string,
+  body: CreateHealthRecordRequest
+): Promise<HealthRecordResponse> {
+  return apiRequest<HealthRecordResponse>('/vet/health-records', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  });
 }

@@ -43,7 +43,6 @@ export interface JwtResponse {
   refreshToken: string;
   type: 'Bearer';
   email: string;
-  role: string;
 }
 
 /* Error Types */
