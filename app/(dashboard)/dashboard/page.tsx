@@ -85,17 +85,218 @@ function CircularProgress({ value, color, size = 80 }: { value: number; color: s
   );
 }
 
-/* Sparkline bar chart for daily summaries */
-function SparkBars({ values, color, max }: { values: number[]; color: string; max: number }) {
+/* Dual-axis batch chart: area curve (feeding) + bars (mortality) */
+function BatchMiniChart({
+  feedValues,
+  mortValues,
+  hasAnomaly,
+}: {
+  feedValues: number[];
+  mortValues: number[];
+  hasAnomaly: boolean;
+}) {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; day: number; feed: number; mort: number } | null>(null);
+  const W = 240;
+  const H = 80;
+  const PAD = { top: 8, right: 6, bottom: 16, left: 28 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const n = feedValues.length;
+  if (n === 0) return null;
+
+  const maxFeed = Math.max(...feedValues, 1);
+  const maxMort = Math.max(...mortValues, 1);
+
+  const feedColor = hasAnomaly ? '#f59e0b' : '#f59e0b';
+  const mortColor = hasAnomaly ? '#C84630' : '#10b981';
+
+  const xPos = (i: number) => PAD.left + (i / Math.max(n - 1, 1)) * innerW;
+  const yFeed = (v: number) => PAD.top + innerH - (v / maxFeed) * innerH;
+  const yMort = (v: number) => PAD.top + innerH - (v / maxMort) * innerH;
+
+  const feedPath = feedValues
+    .map((v, i) => {
+      const x = xPos(i);
+      const y = yFeed(v);
+      if (i === 0) return `M ${x} ${y}`;
+      const px = xPos(i - 1);
+      const py = yFeed(feedValues[i - 1]);
+      const cx = (px + x) / 2;
+      return `C ${cx} ${py} ${cx} ${y} ${x} ${y}`;
+    })
+    .join(' ');
+
+  const areaPath =
+    feedPath +
+    ` L ${xPos(n - 1)} ${PAD.top + innerH} L ${PAD.left} ${PAD.top + innerH} Z`;
+
+  const barW = Math.max(2, innerW / n - 1.5);
+
+  const gradFeedId = `gf${Math.random().toString(36).slice(2, 7)}`;
+  const gradAreaId = `ga${Math.random().toString(36).slice(2, 7)}`;
+
+  const ticks = [0, 0.5, 1].map((t) => ({
+    y: PAD.top + innerH - t * innerH,
+    val: Math.round(t * maxFeed),
+  }));
+
   return (
-    <div className="flex items-end gap-0.5 h-8">
-      {values.map((v, i) => (
-        <div
-          key={i}
-          className="flex-1 rounded-sm transition-all duration-300"
-          style={{ height: `${max > 0 ? Math.max(10, (v / max) * 100) : 10}%`, backgroundColor: color, opacity: 0.6 + (i / values.length) * 0.4 }}
+    <div className="relative w-full" style={{ paddingBottom: '34%' }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
+        className="absolute inset-0 w-full h-full overflow-visible"
+        onMouseLeave={() => setTooltip(null)}
+      >
+        <defs>
+          <linearGradient id={gradFeedId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor={feedColor} stopOpacity="0.4" />
+            <stop offset="100%" stopColor={feedColor} stopOpacity="1" />
+          </linearGradient>
+          <linearGradient id={gradAreaId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={feedColor} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={feedColor} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* grid lines */}
+        {ticks.map((t, i) => (
+          <g key={i}>
+            <line
+              x1={PAD.left}
+              x2={PAD.left + innerW}
+              y1={t.y}
+              y2={t.y}
+              stroke="currentColor"
+              strokeOpacity="0.07"
+              strokeWidth="0.8"
+              strokeDasharray="3 3"
+              className="text-[var(--color-text-muted)]"
+            />
+            <text
+              x={PAD.left - 3}
+              y={t.y + 3}
+              textAnchor="end"
+              fontSize="5.5"
+              fill="currentColor"
+              className="text-[var(--color-text-muted)]"
+              opacity="0.55"
+            >
+              {t.val}
+            </text>
+          </g>
+        ))}
+
+        {/* x-axis baseline */}
+        <line
+          x1={PAD.left}
+          x2={PAD.left + innerW}
+          y1={PAD.top + innerH}
+          y2={PAD.top + innerH}
+          stroke="currentColor"
+          strokeOpacity="0.12"
+          strokeWidth="0.8"
+          className="text-[var(--color-text-muted)]"
         />
-      ))}
+
+        {/* x labels (first, mid, last) */}
+        {[0, Math.floor((n - 1) / 2), n - 1].map((idx) => (
+          <text
+            key={idx}
+            x={xPos(idx)}
+            y={H - 3}
+            textAnchor="middle"
+            fontSize="5"
+            fill="currentColor"
+            className="text-[var(--color-text-muted)]"
+            opacity="0.5"
+          >
+            J{idx + 1}
+          </text>
+        ))}
+
+        {/* mortality bars */}
+        {mortValues.map((v, i) => {
+          if (v === 0) return null;
+          const bx = xPos(i) - barW / 2;
+          const bh = (v / maxMort) * innerH * 0.55;
+          const by = PAD.top + innerH - bh;
+          return (
+            <rect
+              key={i}
+              x={bx}
+              y={by}
+              width={barW}
+              height={bh}
+              rx="1"
+              fill={mortColor}
+              opacity={hasAnomaly ? 0.75 : 0.55}
+            />
+          );
+        })}
+
+        {/* feeding area fill */}
+        <path d={areaPath} fill={`url(#${gradAreaId})`} />
+
+        {/* feeding curve */}
+        <path
+          d={feedPath}
+          fill="none"
+          stroke={`url(#${gradFeedId})`}
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* dots + invisible hover zones */}
+        {feedValues.map((v, i) => {
+          const cx = xPos(i);
+          const cy = yFeed(v);
+          const isHovered = tooltip?.day === i;
+          return (
+            <g key={i}>
+              <circle
+                cx={cx}
+                cy={cy}
+                r={isHovered ? 3 : 1.5}
+                fill={feedColor}
+                opacity={isHovered ? 1 : 0.7}
+                className="transition-all duration-150"
+              />
+              <rect
+                x={cx - 6}
+                y={PAD.top}
+                width={12}
+                height={innerH}
+                fill="transparent"
+                onMouseEnter={() =>
+                  setTooltip({ x: cx, y: cy, day: i, feed: v, mort: mortValues[i] ?? 0 })
+                }
+              />
+            </g>
+          );
+        })}
+
+        {/* tooltip */}
+        {tooltip && (() => {
+          const tx = tooltip.x + 8 > PAD.left + innerW - 42 ? tooltip.x - 50 : tooltip.x + 8;
+          const ty = Math.max(PAD.top, tooltip.y - 18);
+          return (
+            <g>
+              <rect x={tx} y={ty} width={44} height={26} rx="4" fill="var(--color-primary)" opacity="0.93" />
+              <text x={tx + 22} y={ty + 9} textAnchor="middle" fontSize="5.5" fill="white" opacity="0.7">
+                J{tooltip.day + 1}
+              </text>
+              <text x={tx + 5} y={ty + 18} fontSize="5.5" fill={feedColor} fontWeight="600">
+                {tooltip.feed.toFixed(0)}kg
+              </text>
+              <text x={tx + 25} y={ty + 18} fontSize="5.5" fill={tooltip.mort > 0 ? mortColor : '#10b981'} fontWeight="600">
+                {tooltip.mort}m
+              </text>
+            </g>
+          );
+        })()}
+      </svg>
     </div>
   );
 }
@@ -519,44 +720,105 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ============ ROW 6: BATCH SPARKLINES (side by side) ============ */}
+      {/* ============ ROW 6: BATCH CHARTS ============ */}
       {supervision && Object.keys(summariesByBatch).length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Object.entries(summariesByBatch).map(([batchNum, summaries], i) => {
-            const feedValues = summaries.map(s => s.totalQuantityEaten);
-            const mortalityValues = summaries.map(s => s.mortalityCount);
-            const maxFeed = Math.max(...feedValues, 1);
-            const maxMort = Math.max(...mortalityValues, 1);
-            const hasAnomaly = summaries.some(s => s.abnormalConsumption);
-            const totalMort = mortalityValues.reduce((a, b) => a + b, 0);
-            return (
-              <div key={batchNum} className={`rounded-xl border p-4 transition-all duration-300 hover:shadow-md ${hasAnomaly ? 'border-[var(--color-brand)]/30 bg-[var(--color-brand)]/[0.02]' : 'border-[var(--color-border)] bg-[var(--color-surface-1)]'}`} style={{ animationDelay: `${0.05 * i}s` }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-bold text-[var(--color-text-primary)] text-sm">{batchNum}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">{summaries.length}j</p>
-                  </div>
-                  {hasAnomaly && <span className="w-2 h-2 rounded-full bg-[var(--color-brand)] animate-pulse" />}
-                </div>
-                <div className="space-y-2">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-[var(--color-text-muted)]">Alim.</span>
-                      <span className="text-xs font-semibold text-amber-600">{feedValues.reduce((a, b) => a + b, 0).toFixed(0)}kg</span>
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Courbes par Lot</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                Alimentation (courbe) et mortalite (barres) — {Object.keys(summariesByBatch).length} lots actifs
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
+              <span className="flex items-center gap-1.5">
+                <span className="w-6 h-0.5 rounded-full bg-amber-400 inline-block" />
+                Alimentation
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-[var(--color-brand)] inline-block opacity-60" />
+                Mortalite
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {Object.entries(summariesByBatch).map(([batchNum, summaries], i) => {
+              const feedValues = summaries.map(s => Number(s.totalQuantityEaten));
+              const mortValues = summaries.map(s => s.mortalityCount);
+              const hasAnomaly = summaries.some(s => s.abnormalConsumption);
+              const totalFeed = feedValues.reduce((a, b) => a + b, 0);
+              const totalMort = mortValues.reduce((a, b) => a + b, 0);
+              const anomalyCount = summaries.filter(s => s.abnormalConsumption).length;
+              return (
+                <div
+                  key={batchNum}
+                  className={`group relative rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${
+                    hasAnomaly
+                      ? 'border-[var(--color-brand)]/25 bg-gradient-to-br from-[var(--color-surface-1)] to-[var(--color-brand)]/[0.03]'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface-1)]'
+                  }`}
+                  style={{ animationDelay: `${0.06 * i}s` }}
+                >
+                  {/* top accent bar */}
+                  <div className={`h-0.5 w-full ${hasAnomaly ? 'bg-gradient-to-r from-[var(--color-brand)] to-amber-400' : 'bg-gradient-to-r from-amber-400 to-emerald-400'}`} />
+
+                  <div className="px-4 pt-3 pb-1">
+                    {/* header */}
+                    <div className="flex items-start justify-between mb-1">
+                      <div>
+                        <p className="font-bold text-[var(--color-text-primary)] text-sm tracking-tight">{batchNum}</p>
+                        <p className="text-xs text-[var(--color-text-muted)]">{summaries.length} jours de donnees</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {hasAnomaly && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-[var(--color-brand)]/10 text-[var(--color-brand)] text-xs font-bold rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand)] animate-pulse inline-block" />
+                            {anomalyCount} anomalie{anomalyCount > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {!hasAnomaly && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-full border border-emerald-100">
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                            Normal
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <SparkBars values={feedValues} color="#f59e0b" max={maxFeed} />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-[var(--color-text-muted)]">Mort.</span>
-                      <span className={`text-xs font-semibold ${totalMort > 0 ? 'text-[var(--color-brand)]' : 'text-emerald-600'}`}>{totalMort}</span>
+
+                    {/* stats row */}
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-base font-extrabold text-amber-500 tabular-nums">{totalFeed.toFixed(0)}</span>
+                        <span className="text-xs text-[var(--color-text-muted)] font-medium">kg alim.</span>
+                      </div>
+                      <div className="w-px h-4 bg-[var(--color-border)]" />
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-base font-extrabold tabular-nums ${totalMort > 0 ? 'text-[var(--color-brand)]' : 'text-emerald-500'}`}>{totalMort}</span>
+                        <span className="text-xs text-[var(--color-text-muted)] font-medium">mort.</span>
+                      </div>
+                      <div className="w-px h-4 bg-[var(--color-border)]" />
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xs text-[var(--color-text-muted)]">moy.</span>
+                        <span className="text-sm font-bold text-[var(--color-text-body)] tabular-nums">
+                          {(totalFeed / Math.max(summaries.length, 1)).toFixed(0)}kg
+                        </span>
+                        <span className="text-xs text-[var(--color-text-muted)]">/j</span>
+                      </div>
                     </div>
-                    <SparkBars values={mortalityValues} color={totalMort > 0 ? '#C84630' : '#10b981'} max={maxMort} />
+                  </div>
+
+                  {/* chart */}
+                  <div className="px-2 pb-3">
+                    <BatchMiniChart
+                      feedValues={feedValues}
+                      mortValues={mortValues}
+                      hasAnomaly={hasAnomaly}
+                    />
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
