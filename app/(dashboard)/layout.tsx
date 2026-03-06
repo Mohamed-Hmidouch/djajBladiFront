@@ -12,7 +12,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-[var(--color-surface-2)]">
       {/* Navbar */}
       <header className="h-[var(--navbar-height)] bg-[var(--color-surface-1)] border-b border-[var(--color-border)] sticky top-0 z-50 backdrop-blur-[10px]">
-        <div className="h-full max-w-[var(--container-max)] mx-auto px-[var(--space-lg)] flex items-center justify-between">
+        <div className="h-full w-full px-6 flex items-center justify-between">
           {/* Logo */}
           <Link href="/dashboard" className="flex items-center gap-3">
             <Image
@@ -30,7 +30,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-[var(--container-max)] mx-auto px-[var(--space-lg)] py-[var(--space-xl)]">
+      <main className="w-full px-6 py-6">
         {children}
       </main>
     </div>

@@ -1,4 +1,4 @@
-/* Admin Types - DjajBladi API (Buildings, Batches, Stock) */
+/* Admin Types - DjajBladi API (Buildings, Batches, Stock, Dashboard, Mortality, Feeding, Health) */
 
 /* Buildings */
 export interface BuildingResponse {
@@ -17,6 +17,8 @@ export interface CreateBuildingRequest {
 }
 
 /* Batches */
+export type BatchStatus = 'Active' | 'Completed' | 'Cancelled';
+
 export interface BatchResponse {
   id: number;
   batchNumber: string;
@@ -26,7 +28,7 @@ export interface BatchResponse {
   purchasePrice: number;
   buildingId: number | null;
   buildingName: string | null;
-  status: string;
+  status: BatchStatus;
   notes: string | null;
   createdById: number;
   createdAt: string;
@@ -65,4 +67,137 @@ export interface CreateStockRequest {
   name?: string;
   quantity: number;
   unit: string;
+}
+
+/* Admin Create User */
+export interface AdminCreateUserRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phoneNumber?: string;
+  role: string;
+}
+
+/* Profile */
+export interface UpdateProfileRequest {
+  fullName?: string;
+  phoneNumber?: string;
+  city?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+/* Mortality */
+export interface CreateMortalityRequest {
+  batchId: number;
+  recordDate: string;
+  mortalityCount: number;
+  notes?: string;
+}
+
+export interface MortalityResponse {
+  id: number;
+  batchId: number;
+  batchNumber: string;
+  recordDate: string;
+  mortalityCount: number;
+  notes: string | null;
+  recordedById: number;
+  recordedByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* Feeding */
+export interface CreateFeedingRequest {
+  batchId: number;
+  feedType: string;
+  quantity: number;
+  feedingDate: string;
+  notes?: string;
+}
+
+export interface FeedingResponse {
+  id: number;
+  batchId: number;
+  batchNumber: string;
+  feedType: string;
+  quantity: number;
+  feedingDate: string;
+  notes: string | null;
+  recordedById: number;
+  recordedByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* Health Records */
+export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface CreateHealthRecordRequest {
+  batchId: number;
+  diagnosis: string;
+  treatment?: string;
+  examinationDate: string;
+  nextVisitDate?: string;
+  mortalityCount?: number;
+  treatmentCost?: number;
+  isDiseaseReported?: boolean;
+  notes?: string;
+}
+
+export interface HealthRecordResponse {
+  id: number;
+  batchId: number;
+  batchNumber: string;
+  veterinarianId: number;
+  veterinarianName: string;
+  diagnosis: string;
+  treatment: string | null;
+  examinationDate: string;
+  nextVisitDate: string | null;
+  mortalityCount: number;
+  treatmentCost: number | null;
+  requiresApproval: boolean;
+  approvalStatus: ApprovalStatus;
+  approvedById: number | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* Dashboard Supervision */
+export interface BatchDailySummary {
+  batchId: number;
+  batchNumber: string;
+  date: string;
+  totalQuantityEaten: number;
+  mortalityCount: number;
+  recordedByName: string;
+  abnormalConsumption: boolean;
+}
+
+export interface HealthAlertSummary {
+  healthRecordId: number;
+  batchId: number;
+  batchNumber: string;
+  diagnosis: string;
+  treatment: string | null;
+  treatmentCost: number | null;
+  examinationDate: string;
+  veterinarianName: string;
+  createdAt: string;
+}
+
+export interface SupervisionDashboardResponse {
+  startDate: string;
+  endDate: string;
+  batchSummaries: BatchDailySummary[];
+  pendingAlerts: HealthAlertSummary[];
 }
