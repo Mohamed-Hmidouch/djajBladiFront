@@ -115,6 +115,7 @@ export interface MortalityResponse {
 /* Feeding */
 export interface CreateFeedingRequest {
   batchId: number;
+  stockItemId: number;
   feedType: string;
   quantity: number;
   feedingDate: string;
@@ -125,6 +126,8 @@ export interface FeedingResponse {
   id: number;
   batchId: number;
   batchNumber: string;
+  stockItemId: number | null;
+  stockItemName: string | null;
   feedType: string;
   quantity: number;
   feedingDate: string;
