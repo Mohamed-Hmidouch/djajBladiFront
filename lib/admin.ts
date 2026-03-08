@@ -229,10 +229,14 @@ export async function createFeeding(
 
 export async function getFeedings(
   token: string,
-  batchId?: number
+  options?: { batchId?: number; startDate?: string; endDate?: string }
 ): Promise<FeedingResponse[]> {
-  const params = batchId ? `?batchId=${batchId}` : '';
-  return apiRequest<FeedingResponse[]>(`/ouvrier/feeding${params}`, { token });
+  const endDate = options?.endDate || new Date().toISOString().split('T')[0];
+  const start = options?.startDate
+    || (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().split('T')[0]; })();
+  const params = new URLSearchParams({ startDate: start, endDate });
+  if (options?.batchId) params.set('batchId', String(options.batchId));
+  return apiRequest<FeedingResponse[]>(`/ouvrier/feeding?${params.toString()}`, { token });
 }
 
 /* Health Records (Veterinaire) */
