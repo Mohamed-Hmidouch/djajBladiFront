@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getToken } from '@/lib/jwt';
-import { getBatches, createBatch, getBuildings, validateBatchCapacity } from '@/lib/admin';
+import { getBatches, createBatch, getAllBatchesFlat, getBuildings, validateBatchCapacity } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import type { BatchResponse, CreateBatchRequest, BuildingResponse, BatchStatus } from '@/types/admin';
 import {
@@ -11,7 +11,8 @@ import {
   AdminBentoGrid,
   AdminBentoForm,
   AdminBentoList,
-} from '@/components/dashboard/AdminPageShell';
+  Pagination,
+} from '@/components/dashboard';
 
 const statusConfig: Record<BatchStatus, { color: string; label: string; textColor: string; bgColor: string }> = {
   Active: { color: 'bg-emerald-500', label: 'Actif', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
@@ -29,10 +30,17 @@ const initialForm: CreateBatchRequest = {
   notes: '',
 };
 
+const PAGE_SIZE = 5;
+
 export default function AdminBatchesPage() {
   const [batches, setBatches] = useState<BatchResponse[]>([]);
   const [buildings, setBuildings] = useState<BuildingResponse[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [activeBatchesCount, setActiveBatchesCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedBatch, setExpandedBatch] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -41,27 +49,44 @@ export default function AdminBatchesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (targetPage: number) => {
     const token = getToken();
     if (!token) return;
     try {
       setError(null);
-      const [batchesData, buildingsData] = await Promise.all([
-        getBatches(token),
-        getBuildings(token),
+      const [batchesPage, buildingsPage] = await Promise.all([
+        getBatches(token, targetPage, PAGE_SIZE),
+        getBuildings(token, 0, 1000),
       ]);
-      setBatches(batchesData);
-      setBuildings(buildingsData);
+      setBatches(batchesPage.content);
+      setTotalPages(batchesPage.totalPages);
+      setTotalElements(batchesPage.totalElements);
+      setPage(batchesPage.page);
+      setBuildings(buildingsPage.content);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur lors du chargement des lots');
     } finally {
       setLoading(false);
+      setPageLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const token = getToken();
+    if (!token) return;
+    getAllBatchesFlat(token).then((all) => {
+      setActiveBatchesCount(all.filter((b) => b.status === 'Active').length);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchData(0);
   }, [fetchData]);
+
+  function handlePageChange(newPage: number) {
+    setPageLoading(true);
+    fetchData(newPage);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,7 +108,7 @@ export default function AdminBatchesPage() {
         notes: form.notes || undefined,
       });
       setForm(initialForm);
-      await fetchData();
+      await fetchData(page);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Erreur lors de la creation');
     } finally {
@@ -91,13 +116,11 @@ export default function AdminBatchesPage() {
     }
   }
 
-  const activeBatches = batches.filter(b => b.status === 'Active');
-  const totalChickens = activeBatches.reduce((sum, b) => sum + b.chickenCount, 0);
-  const totalValue = batches.reduce((sum, b) => sum + b.purchasePrice, 0);
+  const activeBatchesOnPage = batches.filter((b) => b.status === 'Active');
+  const totalChickensOnPage = activeBatchesOnPage.reduce((sum, b) => sum + b.chickenCount, 0);
+  const totalValueOnPage = batches.reduce((sum, b) => sum + b.purchasePrice, 0);
 
-  const filteredBatches = filterStatus === 'all'
-    ? batches
-    : batches.filter(b => b.status === filterStatus);
+  const filteredBatches = filterStatus === 'all' ? batches : batches.filter((b) => b.status === filterStatus);
 
   const getDaysSinceArrival = (arrivalDate: string) => {
     const arrival = new Date(arrivalDate);
@@ -121,7 +144,7 @@ export default function AdminBatchesPage() {
         <div className="bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl p-6 text-center">
           <p className="text-[var(--color-brand)] font-semibold mb-2">Erreur</p>
           <p className="text-[var(--color-text-muted)] text-sm">{error}</p>
-          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors">
+          <button onClick={() => fetchData(0)} className="mt-4 px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors">
             Reessayer
           </button>
         </div>
@@ -135,13 +158,12 @@ export default function AdminBatchesPage() {
       subtitle="Suivez vos lots de poussins depuis leur arrivee jusqu'a la vente. Visualisez la croissance et les performances."
       accent="batches"
     >
-      {/* STATS OVERVIEW */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Lots Actifs', value: activeBatches.length, gradient: 'from-emerald-500 to-emerald-600', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-          { label: 'Total Poussins', value: totalChickens.toLocaleString(), gradient: 'from-[var(--color-primary)] to-[#2d4a6f]', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-          { label: 'Valeur Stock', value: `${(totalValue / 1000).toFixed(0)}K DH`, gradient: 'from-[var(--color-brand)] to-[#e85d4a]', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-          { label: 'Total Lots', value: batches.length, gradient: 'from-violet-500 to-purple-600', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+          { label: 'Lots Actifs', value: activeBatchesCount, gradient: 'from-emerald-500 to-emerald-600', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
+          { label: 'Poussins (page)', value: totalChickensOnPage.toLocaleString(), gradient: 'from-[var(--color-primary)] to-[#2d4a6f]', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+          { label: 'Valeur (page)', value: `${(totalValueOnPage / 1000).toFixed(0)}K DH`, gradient: 'from-[var(--color-brand)] to-[#e85d4a]', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+          { label: 'Total Lots', value: totalElements, gradient: 'from-violet-500 to-purple-600', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
         ].map((stat, index) => (
           <div key={stat.label} className={`animate-slideUp stagger-${index + 1} bg-gradient-to-br ${stat.gradient} rounded-2xl p-5 text-white shadow-lg card-lift`} style={{ opacity: 0, animationFillMode: 'forwards' }}>
             <div className="flex items-center justify-between">
@@ -158,63 +180,56 @@ export default function AdminBatchesPage() {
       </div>
 
       <AdminBentoGrid>
-        {/* ADD BATCH FORM */}
         <AdminBentoForm>
           <AdminPanel title="Nouveau Lot" description="Enregistrer un nouveau lot de poussins" accent="batches">
             <form onSubmit={handleSubmit} className="space-y-5 animate-slideInLeft" style={{ animationDelay: '0.2s' }}>
               {formError && (
                 <div className="p-3 bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl text-sm text-[var(--color-brand)]">{formError}</div>
               )}
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Numero de lot</label>
-                  <input type="text" required value={form.batchNumber} onChange={e => setForm(f => ({ ...f, batchNumber: e.target.value }))} placeholder="BL-2026-003" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
+                  <input type="text" required value={form.batchNumber} onChange={(e) => setForm((f) => ({ ...f, batchNumber: e.target.value }))} placeholder="BL-2026-003" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Souche</label>
-                  <select value={form.strain} onChange={e => setForm(f => ({ ...f, strain: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200">
+                  <select value={form.strain} onChange={(e) => setForm((f) => ({ ...f, strain: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200">
                     <option>Cobb 500</option>
                     <option>Ross 308</option>
                     <option>Hubbard Classic</option>
                   </select>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Nombre de poussins</label>
-                  <input type="number" required min={1} value={form.chickenCount || ''} onChange={e => setForm(f => ({ ...f, chickenCount: parseInt(e.target.value) || 0 }))} placeholder="5000" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
+                  <input type="number" required min={1} value={form.chickenCount || ''} onChange={(e) => setForm((f) => ({ ...f, chickenCount: parseInt(e.target.value) || 0 }))} placeholder="5000" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Date d&apos;arrivee</label>
-                  <input type="date" required value={form.arrivalDate} onChange={e => setForm(f => ({ ...f, arrivalDate: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
+                  <input type="date" required value={form.arrivalDate} onChange={(e) => setForm((f) => ({ ...f, arrivalDate: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Prix d&apos;achat (DH)</label>
                 <div className="relative">
-                  <input type="number" required min={0} value={form.purchasePrice || ''} onChange={e => setForm(f => ({ ...f, purchasePrice: parseFloat(e.target.value) || 0 }))} placeholder="75000" className="w-full px-4 py-3 pr-16 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
+                  <input type="number" required min={0} value={form.purchasePrice || ''} onChange={(e) => setForm((f) => ({ ...f, purchasePrice: parseFloat(e.target.value) || 0 }))} placeholder="75000" className="w-full px-4 py-3 pr-16 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200" />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)] font-medium">DH</span>
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Batiment</label>
-                <select value={form.buildingId || ''} onChange={e => setForm(f => ({ ...f, buildingId: e.target.value ? parseInt(e.target.value) : undefined }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200">
+                <select value={form.buildingId || ''} onChange={(e) => setForm((f) => ({ ...f, buildingId: e.target.value ? parseInt(e.target.value) : undefined }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200">
                   <option value="">Selectionner un batiment</option>
-                  {buildings.map(b => (
+                  {buildings.map((b) => (
                     <option key={b.id} value={b.id}>{b.name} ({b.maxCapacity} places)</option>
                   ))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Notes</label>
-                <textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes optionnelles..." rows={2} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 resize-none" />
+                <textarea value={form.notes || ''} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Notes optionnelles..." rows={2} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 resize-none" />
               </div>
-
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={submitting} className="flex-1 px-6 py-3.5 bg-emerald-500 text-white font-semibold rounded-xl hover:bg-emerald-600 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-emerald-500/25 disabled:opacity-50">
                   {submitting ? 'Enregistrement...' : 'Enregistrer le lot'}
@@ -227,15 +242,14 @@ export default function AdminBatchesPage() {
           </AdminPanel>
         </AdminBentoForm>
 
-        {/* BATCHES LIST */}
         <AdminBentoList>
           <AdminPanel title="Tous les Lots" description="Vue d'ensemble de vos lots" accent="batches">
             <div className="flex gap-2 mb-6 animate-fadeIn overflow-x-auto pb-2">
               {[
-                { key: 'all', label: 'Tous', count: batches.length },
-                { key: 'Active', label: 'Actifs', count: batches.filter(b => b.status === 'Active').length },
-                { key: 'Completed', label: 'Termines', count: batches.filter(b => b.status === 'Completed').length },
-                { key: 'Cancelled', label: 'Annules', count: batches.filter(b => b.status === 'Cancelled').length },
+                { key: 'all', label: 'Tous', count: totalElements },
+                { key: 'Active', label: 'Actifs', count: activeBatchesCount },
+                { key: 'Completed', label: 'Termines', count: batches.filter((b) => b.status === 'Completed').length },
+                { key: 'Cancelled', label: 'Annules', count: batches.filter((b) => b.status === 'Cancelled').length },
               ].map((tab) => (
                 <button key={tab.key} onClick={() => setFilterStatus(tab.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${filterStatus === tab.key ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25' : 'bg-[var(--color-surface-2)] text-[var(--color-text-body)] hover:bg-[var(--color-surface-3)]'}`}>
                   {tab.label}
@@ -244,7 +258,11 @@ export default function AdminBatchesPage() {
               ))}
             </div>
 
-            {filteredBatches.length === 0 ? (
+            {pageLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full" />
+              </div>
+            ) : filteredBatches.length === 0 ? (
               <div className="text-center py-12 text-[var(--color-text-muted)]">
                 <p className="text-lg font-medium">Aucun lot trouve</p>
                 <p className="text-sm mt-1">Enregistrez un lot via le formulaire</p>
@@ -254,7 +272,6 @@ export default function AdminBatchesPage() {
                 {filteredBatches.map((batch, index) => {
                   const stConfig = statusConfig[batch.status] || statusConfig.Active;
                   const age = getDaysSinceArrival(batch.arrivalDate);
-
                   return (
                     <article key={batch.id} className={`animate-slideUp rounded-2xl border overflow-hidden transition-all duration-300 ease-out ${expandedBatch === batch.id ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-xl' : 'border-[var(--color-border)] hover:border-emerald-500/40 hover:shadow-lg'}`} style={{ opacity: 0, animationDelay: `${0.1 + index * 0.05}s`, animationFillMode: 'forwards' }}>
                       <div className="flex items-center gap-4 p-4 bg-[var(--color-surface-1)] cursor-pointer" onClick={() => setExpandedBatch(expandedBatch === batch.id ? null : batch.id)}>
@@ -279,7 +296,6 @@ export default function AdminBatchesPage() {
                           <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </div>
                       </div>
-
                       <div className={`overflow-hidden transition-all duration-300 ease-out ${expandedBatch === batch.id ? 'max-h-60' : 'max-h-0'}`}>
                         <div className="p-4 pt-0 bg-[var(--color-surface-1)] border-t border-[var(--color-border)]">
                           <div className="mb-4">
@@ -293,7 +309,6 @@ export default function AdminBatchesPage() {
                               </div>
                             </div>
                           </div>
-
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <div className="bg-[var(--color-surface-2)] rounded-xl p-3 text-center">
                               <p className="text-xs text-[var(--color-text-muted)] mb-1">Arrive le</p>
@@ -322,6 +337,15 @@ export default function AdminBatchesPage() {
                 })}
               </div>
             )}
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalElements={totalElements}
+              size={PAGE_SIZE}
+              onPageChange={handlePageChange}
+              loading={pageLoading}
+            />
           </AdminPanel>
         </AdminBentoList>
       </AdminBentoGrid>

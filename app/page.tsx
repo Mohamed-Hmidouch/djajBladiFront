@@ -1,7 +1,27 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cookies } from 'next/headers';
 
-export default function Home() {
+const TOKEN_KEY = 'djajbladi_token';
+
+function isTokenValid(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const payload = JSON.parse(atob(padded));
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+export default async function Home() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(TOKEN_KEY)?.value;
+  const isLoggedIn = token ? isTokenValid(token) : false;
   return (
     <div className="min-h-screen bg-[var(--color-surface-1)]">
       {/* Navbar */}
@@ -14,21 +34,33 @@ export default function Home() {
               width={140}
               height={46}
               priority
+              style={{ width: '140px', height: 'auto' }}
             />
           </Link>
           <nav className="flex items-center gap-[var(--space-md)]">
-            <Link
-              href="/login"
-              className="px-4 py-2 text-[var(--color-text-body)] hover:text-[var(--color-primary)] font-medium transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="px-6 py-2 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold hover:bg-[var(--color-brand-hover)] transition-colors"
-            >
-              Get Started
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href="/dashboard"
+                className="px-6 py-2 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold hover:bg-[var(--color-brand-hover)] transition-colors"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="px-4 py-2 text-[var(--color-text-body)] hover:text-[var(--color-primary)] font-medium transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="px-6 py-2 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold hover:bg-[var(--color-brand-hover)] transition-colors"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -40,6 +72,7 @@ export default function Home() {
             src="/fermLogo.webp"
             alt=""
             fill
+            sizes="100vw"
             className="object-cover"
             priority
           />
@@ -56,18 +89,29 @@ export default function Home() {
               for quality products and reliable service in Morocco.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link
-                href="/register"
-                className="inline-flex items-center justify-center px-8 py-4 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold text-lg hover:bg-[var(--color-brand-hover)] transition-all active:scale-[0.98]"
-              >
-                Start Your Journey
-              </Link>
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center px-8 py-4 bg-white/10 text-white border-2 border-white/30 rounded-[var(--radius-md)] font-semibold text-lg hover:bg-white/20 transition-all"
-              >
-                Sign In
-              </Link>
+              {isLoggedIn ? (
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold text-lg hover:bg-[var(--color-brand-hover)] transition-all active:scale-[0.98]"
+                >
+                  Go to Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center justify-center px-8 py-4 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold text-lg hover:bg-[var(--color-brand-hover)] transition-all active:scale-[0.98]"
+                  >
+                    Start Your Journey
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center justify-center px-8 py-4 bg-white/10 text-white border-2 border-white/30 rounded-[var(--radius-md)] font-semibold text-lg hover:bg-white/20 transition-all"
+                  >
+                    Sign In
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -138,12 +182,21 @@ export default function Home() {
           <p className="text-lg text-white/80 mb-8 max-w-2xl mx-auto">
             Join DjajBladi today and experience the future of poultry management in Morocco.
           </p>
-          <Link
-            href="/register"
-            className="inline-flex items-center justify-center px-8 py-4 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold text-lg hover:bg-[var(--color-brand-hover)] transition-all active:scale-[0.98]"
-          >
-            Create Your Account
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center px-8 py-4 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold text-lg hover:bg-[var(--color-brand-hover)] transition-all active:scale-[0.98]"
+            >
+              Go to Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/register"
+              className="inline-flex items-center justify-center px-8 py-4 bg-[var(--color-brand)] text-white rounded-[var(--radius-md)] font-semibold text-lg hover:bg-[var(--color-brand-hover)] transition-all active:scale-[0.98]"
+            >
+              Create Your Account
+            </Link>
+          )}
         </div>
       </section>
 
@@ -151,13 +204,15 @@ export default function Home() {
       <footer className="py-[var(--space-3xl)] bg-[var(--color-primary)]">
         <div className="max-w-[var(--container-max)] mx-auto px-[var(--space-lg)]">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <Image
-              src="/djajbladiLogo.png"
-              alt="DjajBladi"
-              width={120}
-              height={40}
-              className="brightness-0 invert"
-            />
+            <div className="bg-white rounded-xl px-3 py-2 inline-flex">
+              <Image
+                src="/djajbladiLogo.png"
+                alt="DjajBladi"
+                width={120}
+                height={40}
+                style={{ width: '120px', height: 'auto' }}
+              />
+            </div>
             <p className="text-white/60 text-sm">
               2026 DjajBladi. All rights reserved.
             </p>
