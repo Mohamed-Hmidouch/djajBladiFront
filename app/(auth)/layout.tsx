@@ -1,12 +1,29 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AuthLayoutProps {
   children: ReactNode;
 }
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  if (!isLoading && isAuthenticated) {
+    return null;
+  }
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Branding with Farm Background */}
@@ -16,6 +33,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
           src="/fermLogo.webp"
           alt=""
           fill
+          sizes="50vw"
           priority
           className="object-cover"
         />
@@ -26,14 +44,16 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           {/* Logo */}
           <Link href="/" className="inline-block">
-            <Image
-              src="/djajbladiLogo.png"
-              alt="DjajBladi"
-              width={180}
-              height={60}
-              priority
-              className="brightness-0 invert"
-            />
+            <div className="bg-white rounded-xl px-3 py-2 inline-flex">
+              <Image
+                src="/djajbladiLogo.png"
+                alt="DjajBladi"
+                width={160}
+                height={53}
+                priority
+                style={{ width: '160px', height: 'auto' }}
+              />
+            </div>
           </Link>
 
           {/* Middle Content */}
@@ -66,6 +86,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
                 width={160}
                 height={53}
                 priority
+                style={{ width: '160px', height: 'auto' }}
               />
             </Link>
           </div>

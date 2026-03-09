@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { DashboardNav } from '@/components/dashboard/DashboardNav';
+import { ProtectedRoute } from '@/components/dashboard';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -21,6 +22,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               width={140}
               height={46}
               priority
+              style={{ width: '140px', height: 'auto' }}
             />
           </Link>
 
@@ -30,9 +32,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="w-full px-6 py-6">
-        {children}
-      </main>
+      <ProtectedRoute>
+        <main className="w-full px-6 py-6">
+          {children}
+        </main>
+      </ProtectedRoute>
     </div>
   );
 }

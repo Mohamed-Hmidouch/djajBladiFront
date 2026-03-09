@@ -12,51 +12,48 @@ import {
   AdminBentoGrid,
   AdminBentoForm,
   AdminBentoList,
-} from '@/components/dashboard/AdminPageShell';
+  Pagination,
+} from '@/components/dashboard';
 
 const roleConfig = {
-  Admin: { 
+  Admin: {
     color: 'bg-[var(--color-primary)]',
     bgLight: 'bg-[var(--color-primary)]/10',
     textColor: 'text-[var(--color-primary)]',
     gradient: 'from-[var(--color-primary)] to-[#2d4a6f]',
-    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
+    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
   },
-  Veterinaire: { 
+  Veterinaire: {
     color: 'bg-emerald-500',
     bgLight: 'bg-emerald-50',
     textColor: 'text-emerald-700',
     gradient: 'from-emerald-500 to-emerald-600',
-    icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z'
+    icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
   },
-  Ouvrier: { 
+  Ouvrier: {
     color: 'bg-amber-500',
     bgLight: 'bg-amber-50',
     textColor: 'text-amber-700',
     gradient: 'from-amber-500 to-amber-600',
-    icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'
+    icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
   },
-  Client: { 
+  Client: {
     color: 'bg-violet-500',
     bgLight: 'bg-violet-50',
     textColor: 'text-violet-700',
     gradient: 'from-violet-500 to-purple-600',
-    icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+    icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
   },
 };
 
 function UserAvatar({ fullName, role, size = 'md' }: { fullName: string; role: string; size?: 'sm' | 'md' | 'lg' }) {
   const parts = fullName.trim().split(/\s+/);
-  const initials = parts.length >= 2
-    ? `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase()
-    : fullName.slice(0, 2).toUpperCase();
+  const initials =
+    parts.length >= 2
+      ? `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase()
+      : fullName.slice(0, 2).toUpperCase();
   const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.Client;
-  const sizeClasses = {
-    sm: 'w-8 h-8 text-xs',
-    md: 'w-12 h-12 text-sm',
-    lg: 'w-16 h-16 text-lg',
-  };
-
+  const sizeClasses = { sm: 'w-8 h-8 text-xs', md: 'w-12 h-12 text-sm', lg: 'w-16 h-16 text-lg' };
   return (
     <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-br ${config.gradient} text-white font-bold flex items-center justify-center shadow-lg`}>
       {initials}
@@ -73,9 +70,15 @@ const initialForm: AdminCreateUserRequest = {
   role: 'Ouvrier',
 };
 
+const PAGE_SIZE = 5;
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserResponse[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [filterRole, setFilterRole] = useState<string | null>(null);
@@ -85,23 +88,32 @@ export default function AdminUsersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (targetPage: number) => {
     const token = getToken();
     if (!token) return;
     try {
       setError(null);
-      const data = await getUsers(token);
-      setUsers(data);
+      const data = await getUsers(token, targetPage, PAGE_SIZE);
+      setUsers(data.content);
+      setTotalPages(data.totalPages);
+      setTotalElements(data.totalElements);
+      setPage(data.page);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur lors du chargement des utilisateurs');
     } finally {
       setLoading(false);
+      setPageLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(0);
   }, [fetchUsers]);
+
+  function handlePageChange(newPage: number) {
+    setPageLoading(true);
+    fetchUsers(newPage);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,7 +124,7 @@ export default function AdminUsersPage() {
     try {
       await createUser(token, form);
       setForm(initialForm);
-      await fetchUsers();
+      await fetchUsers(page);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Erreur lors de la creation');
     } finally {
@@ -120,18 +132,15 @@ export default function AdminUsersPage() {
     }
   }
 
-  const totalUsers = users.length;
-  const activeUsers = users.filter(u => u.isActive).length;
+  const activeUsers = users.filter((u) => u.isActive).length;
   const roleDistribution = {
-    Admin: users.filter(u => u.role === 'Admin').length,
-    Veterinaire: users.filter(u => u.role === 'Veterinaire').length,
-    Ouvrier: users.filter(u => u.role === 'Ouvrier').length,
-    Client: users.filter(u => u.role === 'Client').length,
+    Admin: users.filter((u) => u.role === 'Admin').length,
+    Veterinaire: users.filter((u) => u.role === 'Veterinaire').length,
+    Ouvrier: users.filter((u) => u.role === 'Ouvrier').length,
+    Client: users.filter((u) => u.role === 'Client').length,
   };
 
-  const filteredUsers = filterRole
-    ? users.filter(u => u.role === filterRole)
-    : users;
+  const filteredUsers = filterRole ? users.filter((u) => u.role === filterRole) : users;
 
   const formatLastLogin = (dateStr: string | null) => {
     if (!dateStr) return 'Jamais';
@@ -140,7 +149,6 @@ export default function AdminUsersPage() {
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
-
     if (diffHours < 1) return 'En ligne';
     if (diffHours < 24) return `Il y a ${diffHours}h`;
     if (diffDays < 7) return `Il y a ${diffDays}j`;
@@ -163,7 +171,7 @@ export default function AdminUsersPage() {
         <div className="bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl p-6 text-center">
           <p className="text-[var(--color-brand)] font-semibold mb-2">Erreur</p>
           <p className="text-[var(--color-text-muted)] text-sm">{error}</p>
-          <button onClick={fetchUsers} className="mt-4 px-4 py-2 bg-[var(--color-brand)] text-white rounded-lg text-sm font-medium hover:bg-[var(--color-brand-hover)] transition-colors">
+          <button onClick={() => fetchUsers(0)} className="mt-4 px-4 py-2 bg-[var(--color-brand)] text-white rounded-lg text-sm font-medium hover:bg-[var(--color-brand-hover)] transition-colors">
             Reessayer
           </button>
         </div>
@@ -172,18 +180,13 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <AdminPageShell
-      title="Gestion de l'Equipe"
-      subtitle="Gerez les comptes utilisateurs, les roles et les permissions de votre equipe."
-      accent="brand"
-    >
-      {/* STATS OVERVIEW */}
+    <AdminPageShell title="Gestion de l'Equipe" subtitle="Gerez les comptes utilisateurs, les roles et les permissions de votre equipe." accent="brand">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="animate-slideUp stagger-1 bg-gradient-to-br from-[var(--color-brand)] to-[#e85d4a] rounded-2xl p-5 text-white shadow-lg card-lift" style={{ opacity: 0, animationFillMode: 'forwards' }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white/70 text-sm font-medium">Total Membres</p>
-              <p className="text-3xl font-bold mt-1">{totalUsers}</p>
+              <p className="text-3xl font-bold mt-1">{totalElements}</p>
             </div>
             <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -193,7 +196,7 @@ export default function AdminUsersPage() {
         <div className="animate-slideUp stagger-2 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg card-lift" style={{ opacity: 0, animationFillMode: 'forwards' }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white/70 text-sm font-medium">Utilisateurs Actifs</p>
+              <p className="text-white/70 text-sm font-medium">Actifs (page)</p>
               <p className="text-3xl font-bold mt-1">{activeUsers}</p>
             </div>
             <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
@@ -226,16 +229,12 @@ export default function AdminUsersPage() {
       </div>
 
       <AdminBentoGrid>
-        {/* ADD USER FORM */}
         <AdminBentoForm>
           <AdminPanel title="Nouvel Utilisateur" description="Creer un compte pour un membre de l'equipe" accent="brand">
             <form onSubmit={handleSubmit} className="space-y-5 animate-slideInLeft" style={{ animationDelay: '0.2s' }}>
               {formError && (
-                <div className="p-3 bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl text-sm text-[var(--color-brand)]">
-                  {formError}
-                </div>
+                <div className="p-3 bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl text-sm text-[var(--color-brand)]">{formError}</div>
               )}
-
               <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-3">Role</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -243,7 +242,7 @@ export default function AdminUsersPage() {
                     const config = roleConfig[role];
                     const selected = form.role === role;
                     return (
-                      <button key={role} type="button" onClick={() => setForm(f => ({ ...f, role }))} className={`p-3 rounded-xl border-2 transition-all duration-200 ${config.bgLight} ${selected ? `border-current ${config.textColor} shadow-md` : 'border-transparent'} hover:border-current hover:shadow-md active:scale-[0.98]`}>
+                      <button key={role} type="button" onClick={() => setForm((f) => ({ ...f, role }))} className={`p-3 rounded-xl border-2 transition-all duration-200 ${config.bgLight} ${selected ? `border-current ${config.textColor} shadow-md` : 'border-transparent'} hover:border-current hover:shadow-md active:scale-[0.98]`}>
                         <svg className={`w-6 h-6 mx-auto mb-1 ${config.textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={config.icon} /></svg>
                         <p className={`text-xs font-medium ${config.textColor}`}>{role}</p>
                       </button>
@@ -251,33 +250,28 @@ export default function AdminUsersPage() {
                   })}
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Prenom</label>
-                  <input type="text" required value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} placeholder="Mohamed" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
+                  <input type="text" required value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} placeholder="Mohamed" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Nom</label>
-                  <input type="text" required value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Alaoui" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
+                  <input type="text" required value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} placeholder="Alaoui" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Email</label>
-                <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@djajbladi.ma" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
+                <input type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="email@djajbladi.ma" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Telephone</label>
-                <input type="tel" value={form.phoneNumber || ''} onChange={e => setForm(f => ({ ...f, phoneNumber: e.target.value }))} placeholder="+212600000000" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
+                <input type="tel" value={form.phoneNumber || ''} onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} placeholder="+212600000000" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Mot de passe</label>
-                <input type="password" required minLength={8} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min. 8 caracteres" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
+                <input type="password" required minLength={8} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Min. 8 caracteres" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20 focus:border-[var(--color-brand)] transition-all duration-200" />
               </div>
-
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={submitting} className="flex-1 px-6 py-3.5 bg-[var(--color-brand)] text-white font-semibold rounded-xl hover:bg-[var(--color-brand-hover)] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[var(--color-brand)]/25 disabled:opacity-50">
                   {submitting ? 'Creation...' : "Creer l'utilisateur"}
@@ -290,7 +284,6 @@ export default function AdminUsersPage() {
           </AdminPanel>
         </AdminBentoForm>
 
-        {/* USERS LIST */}
         <AdminBentoList>
           <AdminPanel title="Membres de l'Equipe" description="Tous les utilisateurs du systeme" accent="brand">
             <div className="flex flex-col sm:flex-row gap-3 mb-6 animate-fadeIn">
@@ -317,7 +310,11 @@ export default function AdminUsersPage() {
               </div>
             </div>
 
-            {filteredUsers.length === 0 ? (
+            {pageLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-[var(--color-brand)] border-t-transparent rounded-full" />
+              </div>
+            ) : filteredUsers.length === 0 ? (
               <div className="text-center py-12 text-[var(--color-text-muted)]">
                 <p className="text-lg font-medium">Aucun utilisateur trouve</p>
                 <p className="text-sm mt-1">Creez un utilisateur via le formulaire</p>
@@ -326,7 +323,6 @@ export default function AdminUsersPage() {
               <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : 'space-y-3'}>
                 {filteredUsers.map((user, index) => {
                   const config = roleConfig[user.role as keyof typeof roleConfig] || roleConfig.Client;
-
                   return viewMode === 'grid' ? (
                     <article key={user.id} onClick={() => setSelectedUser(selectedUser === user.id ? null : user.id)} className={`animate-slideUp group cursor-pointer rounded-2xl border overflow-hidden transition-all duration-300 ease-out ${selectedUser === user.id ? 'border-[var(--color-brand)] ring-2 ring-[var(--color-brand)]/20 shadow-xl' : 'border-[var(--color-border)] hover:border-[var(--color-brand)]/40 hover:shadow-lg'}`} style={{ opacity: 0, animationDelay: `${0.1 + index * 0.05}s`, animationFillMode: 'forwards' }}>
                       <div className="p-5 bg-[var(--color-surface-1)]">
@@ -378,6 +374,15 @@ export default function AdminUsersPage() {
                 })}
               </div>
             )}
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalElements={totalElements}
+              size={PAGE_SIZE}
+              onPageChange={handlePageChange}
+              loading={pageLoading}
+            />
           </AdminPanel>
         </AdminBentoList>
       </AdminBentoGrid>
