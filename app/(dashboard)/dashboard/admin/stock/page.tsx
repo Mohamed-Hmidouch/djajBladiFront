@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getToken } from '@/lib/jwt';
-import { getStock, createStockItem, getBatches, createFeeding, getFeedings } from '@/lib/admin';
+import { getStock, createStockItem, getAllBatchesFlat, createFeeding, getFeedings, getAllStockFlat } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import { StockType } from '@/types/admin';
 import type {
@@ -18,7 +18,8 @@ import {
   AdminBentoGrid,
   AdminBentoForm,
   AdminBentoList,
-} from '@/components/dashboard/AdminPageShell';
+  Pagination,
+} from '@/components/dashboard';
 
 const typeConfig = {
   Feed: {
@@ -56,7 +57,6 @@ const typeConfig = {
 function DonutChart({ data, size = 160 }: { data: { label: string; value: number; color: string }[]; size?: number }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
   let accumulated = 0;
-
   if (total === 0) {
     return (
       <div className="relative" style={{ width: size, height: size }}>
@@ -72,7 +72,6 @@ function DonutChart({ data, size = 160 }: { data: { label: string; value: number
       </div>
     );
   }
-
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
@@ -81,7 +80,6 @@ function DonutChart({ data, size = 160 }: { data: { label: string; value: number
           const dashArray = `${percentage} ${100 - percentage}`;
           const dashOffset = -accumulated;
           accumulated += percentage;
-
           return (
             <circle
               key={index}
@@ -95,10 +93,7 @@ function DonutChart({ data, size = 160 }: { data: { label: string; value: number
               strokeDashoffset={dashOffset}
               strokeLinecap="round"
               className="transition-all duration-700 ease-out"
-              style={{
-                animation: 'donutFill 1s ease-out forwards',
-                animationDelay: `${index * 0.15}s`,
-              }}
+              style={{ animationDelay: `${index * 0.15}s` }}
             />
           );
         })}
@@ -131,7 +126,6 @@ const initialFeedingForm: CreateFeedingRequest = {
 function StockAvailabilityBadge({ available, requested }: { available: number; requested: number }) {
   const remaining = available - requested;
   const pct = available > 0 ? (requested / available) * 100 : 0;
-
   let color = 'text-emerald-600 bg-emerald-50 border-emerald-200';
   let label = 'Stock suffisant';
   if (requested <= 0) {
@@ -144,43 +138,51 @@ function StockAvailabilityBadge({ available, requested }: { available: number; r
     color = 'text-amber-600 bg-amber-50 border-amber-200';
     label = 'Stock limite';
   }
-
   return (
     <div className={`flex items-center justify-between p-3 rounded-xl border ${color} transition-all duration-300`}>
       <div>
         <p className="text-xs font-medium">{label}</p>
         {requested > 0 && (
           <p className="text-xs mt-0.5 opacity-80">
-            {remaining >= 0
-              ? `Reste apres : ${remaining.toFixed(2)} kg`
-              : `Manque : ${Math.abs(remaining).toFixed(2)} kg`}
+            {remaining >= 0 ? `Reste apres : ${remaining.toFixed(2)} kg` : `Manque : ${Math.abs(remaining).toFixed(2)} kg`}
           </p>
         )}
       </div>
       {available > 0 && requested > 0 && (
         <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              remaining < 0 ? 'bg-red-500' : pct > 80 ? 'bg-amber-500' : 'bg-emerald-500'
-            }`}
-            style={{ width: `${Math.min(pct, 100)}%` }}
-          />
+          <div className={`h-full rounded-full transition-all duration-500 ${remaining < 0 ? 'bg-red-500' : pct > 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
         </div>
       )}
     </div>
   );
 }
 
+const PAGE_SIZE = 5;
+
 export default function AdminStockPage() {
+  // Paginated stock list
   const [stock, setStock] = useState<StockItemResponse[]>([]);
-  const [batches, setBatches] = useState<BatchResponse[]>([]);
+  const [stockPage, setStockPage] = useState(0);
+  const [stockTotalPages, setStockTotalPages] = useState(0);
+  const [stockTotalElements, setStockTotalElements] = useState(0);
+  const [stockPageLoading, setStockPageLoading] = useState(false);
+
+  // Paginated feedings list
   const [feedings, setFeedings] = useState<FeedingResponse[]>([]);
+  const [feedingPage, setFeedingPage] = useState(0);
+  const [feedingTotalPages, setFeedingTotalPages] = useState(0);
+  const [feedingTotalElements, setFeedingTotalElements] = useState(0);
+  const [feedingPageLoading, setFeedingPageLoading] = useState(false);
+
+  // Flat data for forms + donut chart
+  const [allStockFlat, setAllStockFlat] = useState<StockItemResponse[]>([]);
+  const [allBatchesFlat, setAllBatchesFlat] = useState<BatchResponse[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Tab: 'stock' or 'feeding'
   const [activeTab, setActiveTab] = useState<'stock' | 'feeding'>('stock');
 
   // Stock form
@@ -196,27 +198,55 @@ export default function AdminStockPage() {
   const [feedingSearch, setFeedingSearch] = useState('');
   const [filterBatchId, setFilterBatchId] = useState<number | null>(null);
 
-  // Derived
-  const feedStockItems = useMemo(() => stock.filter((s) => s.type === 'Feed'), [stock]);
+  // Derived from flat data (for forms + charts)
+  const feedStockItems = useMemo(() => allStockFlat.filter((s) => s.type === 'Feed'), [allStockFlat]);
   const selectedStock = useMemo(
     () => feedStockItems.find((s) => s.id === feedingForm.stockItemId) ?? null,
     [feedStockItems, feedingForm.stockItemId]
   );
-  const activeBatches = useMemo(() => batches.filter((b) => b.status === 'Active'), [batches]);
+  const activeBatches = useMemo(() => allBatchesFlat.filter((b) => b.status === 'Active'), [allBatchesFlat]);
+
+  const fetchStockPage = useCallback(async (page: number) => {
+    const token = getToken();
+    if (!token) return;
+    const result = await getStock(token, page, PAGE_SIZE);
+    setStock(result.content);
+    setStockPage(result.page);
+    setStockTotalPages(result.totalPages);
+    setStockTotalElements(result.totalElements);
+  }, []);
+
+  const fetchFeedingPage = useCallback(async (page: number) => {
+    const token = getToken();
+    if (!token) return;
+    const result = await getFeedings(token, {}, page, PAGE_SIZE);
+    setFeedings(result.content);
+    setFeedingPage(result.page);
+    setFeedingTotalPages(result.totalPages);
+    setFeedingTotalElements(result.totalElements);
+  }, []);
 
   const fetchData = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     try {
       setError(null);
-      const [stockData, batchData, feedingData] = await Promise.all([
-        getStock(token),
-        getBatches(token),
-        getFeedings(token, {}),
+      const [stockPage0, feedingPage0, flatStock, flatBatches] = await Promise.all([
+        getStock(token, 0, PAGE_SIZE),
+        getFeedings(token, {}, 0, PAGE_SIZE),
+        getAllStockFlat(token),
+        getAllBatchesFlat(token),
       ]);
-      setStock(stockData);
-      setBatches(batchData);
-      setFeedings(feedingData);
+      setStock(stockPage0.content);
+      setStockPage(stockPage0.page);
+      setStockTotalPages(stockPage0.totalPages);
+      setStockTotalElements(stockPage0.totalElements);
+      setFeedings(feedingPage0.content);
+      setFeedingPage(feedingPage0.page);
+      setFeedingTotalPages(feedingPage0.totalPages);
+      setFeedingTotalElements(feedingPage0.totalElements);
+      setAllStockFlat(flatStock);
+      setAllBatchesFlat(flatBatches);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur lors du chargement du stock');
     } finally {
@@ -228,12 +258,21 @@ export default function AdminStockPage() {
     fetchData();
   }, [fetchData]);
 
-  // Auto-fill feedType when stock item selected
   useEffect(() => {
     if (selectedStock) {
       setFeedingForm((f) => ({ ...f, feedType: selectedStock.name || 'Aliment' }));
     }
   }, [selectedStock]);
+
+  function handleStockPageChange(newPage: number) {
+    setStockPageLoading(true);
+    fetchStockPage(newPage).finally(() => setStockPageLoading(false));
+  }
+
+  function handleFeedingPageChange(newPage: number) {
+    setFeedingPageLoading(true);
+    fetchFeedingPage(newPage).finally(() => setFeedingPageLoading(false));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -261,35 +300,19 @@ export default function AdminStockPage() {
     e.preventDefault();
     const token = getToken();
     if (!token) return;
-
-    if (feedingForm.batchId <= 0) {
-      setFeedingFormError('Veuillez selectionner un lot');
-      return;
-    }
-    if (feedingForm.stockItemId <= 0) {
-      setFeedingFormError('Veuillez selectionner un article de stock');
-      return;
-    }
-    if (feedingForm.quantity <= 0) {
-      setFeedingFormError('La quantite doit etre superieure a 0');
-      return;
-    }
+    if (feedingForm.batchId <= 0) { setFeedingFormError('Veuillez selectionner un lot'); return; }
+    if (feedingForm.stockItemId <= 0) { setFeedingFormError('Veuillez selectionner un article de stock'); return; }
+    if (feedingForm.quantity <= 0) { setFeedingFormError('La quantite doit etre superieure a 0'); return; }
     if (selectedStock && feedingForm.quantity > selectedStock.quantity) {
-      setFeedingFormError(
-        `Stock insuffisant : disponible ${selectedStock.quantity.toFixed(2)} kg, demande ${feedingForm.quantity} kg`
-      );
+      setFeedingFormError(`Stock insuffisant : disponible ${selectedStock.quantity.toFixed(2)} kg, demande ${feedingForm.quantity} kg`);
       return;
     }
-
     setFeedingSubmitting(true);
     setFeedingFormError(null);
     setFeedingSuccess(null);
-
     try {
       const created = await createFeeding(token, feedingForm);
-      setFeedingSuccess(
-        `Distribution enregistree : ${created.quantity} kg deduits du stock "${created.stockItemName || created.feedType}"`
-      );
+      setFeedingSuccess(`Distribution enregistree : ${created.quantity} kg deduits du stock "${created.stockItemName || created.feedType}"`);
       setFeedingForm(initialFeedingForm);
       await fetchData();
     } catch (err) {
@@ -299,9 +322,10 @@ export default function AdminStockPage() {
     }
   }
 
-  const feedCount = stock.filter(s => s.type === 'Feed').reduce((sum, s) => sum + s.quantity, 0);
-  const vaccineCount = stock.filter(s => s.type === 'Vaccine').reduce((sum, s) => sum + s.quantity, 0);
-  const vitaminCount = stock.filter(s => s.type === 'Vitamin').reduce((sum, s) => sum + s.quantity, 0);
+  // Chart data from flat stock
+  const feedCount = allStockFlat.filter((s) => s.type === 'Feed').reduce((sum, s) => sum + s.quantity, 0);
+  const vaccineCount = allStockFlat.filter((s) => s.type === 'Vaccine').reduce((sum, s) => sum + s.quantity, 0);
+  const vitaminCount = allStockFlat.filter((s) => s.type === 'Vitamin').reduce((sum, s) => sum + s.quantity, 0);
 
   const chartData = [
     { label: 'Aliments', value: feedCount, color: '#f59e0b' },
@@ -309,7 +333,7 @@ export default function AdminStockPage() {
     { label: 'Vitamines', value: vitaminCount, color: '#10b981' },
   ];
 
-  const filteredStock = stock.filter(item => {
+  const filteredStock = stock.filter((item) => {
     const matchesType = !selectedType || item.type === selectedType;
     const matchesSearch = !searchQuery ||
       (item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -403,9 +427,7 @@ export default function AdminStockPage() {
                 <p className="text-white/70 text-sm font-medium">{cfg.pluralLabel}</p>
                 <p className="text-3xl font-bold mt-1">{cat.count}</p>
                 <p className="text-white/60 text-sm">{cat.unit}</p>
-                {cat.extra && (
-                  <p className="text-white/50 text-xs mt-1">{cat.extra}</p>
-                )}
+                {cat.extra && <p className="text-white/50 text-xs mt-1">{cat.extra}</p>}
               </div>
             );
           })}
@@ -416,21 +438,13 @@ export default function AdminStockPage() {
       <div className="flex gap-1 p-1 bg-[var(--color-surface-2)] rounded-xl mb-6 w-fit">
         <button
           onClick={() => setActiveTab('stock')}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-            activeTab === 'stock'
-              ? 'bg-white shadow-sm text-amber-600'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-body)]'
-          }`}
+          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${activeTab === 'stock' ? 'bg-white shadow-sm text-amber-600' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-body)]'}`}
         >
           Inventaire
         </button>
         <button
           onClick={() => setActiveTab('feeding')}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-            activeTab === 'feeding'
-              ? 'bg-white shadow-sm text-amber-600'
-              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-body)]'
-          }`}
+          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${activeTab === 'feeding' ? 'bg-white shadow-sm text-amber-600' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-body)]'}`}
         >
           Distribution d&apos;aliment
         </button>
@@ -439,49 +453,38 @@ export default function AdminStockPage() {
       {/* ===================== TAB: INVENTAIRE ===================== */}
       {activeTab === 'stock' && (
         <AdminBentoGrid>
-          {/* ADD STOCK FORM */}
           <AdminBentoForm>
             <AdminPanel title="Ajouter au Stock" description="Enregistrer un nouvel article" accent="stock">
               <form onSubmit={handleSubmit} className="space-y-5 animate-slideInLeft" style={{ animationDelay: '0.2s' }}>
                 {formError && (
                   <div className="p-3 bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl text-sm text-[var(--color-brand)]">{formError}</div>
                 )}
-
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-3">Type d&apos;article</label>
                   <div className="grid grid-cols-3 gap-2">
                     {([StockType.Feed, StockType.Vaccine, StockType.Vitamin]).map((type) => {
                       const cfg = typeConfig[type];
                       return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, type }))}
-                          className={`p-3 rounded-xl border-2 transition-all duration-200 ${cfg.bgLight} ${cfg.borderColor} hover:shadow-md active:scale-[0.98] ${form.type === type ? 'ring-2 ring-offset-1 ring-amber-400 shadow-md' : ''}`}
-                        >
-                          <svg className={`w-6 h-6 mx-auto mb-1 ${cfg.textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={cfg.icon} />
-                          </svg>
+                        <button key={type} type="button" onClick={() => setForm((f) => ({ ...f, type }))} className={`p-3 rounded-xl border-2 transition-all duration-200 ${cfg.bgLight} ${cfg.borderColor} hover:shadow-md active:scale-[0.98] ${form.type === type ? 'ring-2 ring-offset-1 ring-amber-400 shadow-md' : ''}`}>
+                          <svg className={`w-6 h-6 mx-auto mb-1 ${cfg.textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={cfg.icon} /></svg>
                           <p className={`text-xs font-medium ${cfg.textColor}`}>{cfg.label}</p>
                         </button>
                       );
                     })}
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Nom de l&apos;article</label>
-                  <input type="text" value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Aliment Demarrage" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200" />
+                  <input type="text" value={form.name || ''} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ex: Aliment Demarrage" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200" />
                 </div>
-
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Quantite</label>
-                    <input type="number" required min={1} value={form.quantity || ''} onChange={e => setForm(f => ({ ...f, quantity: parseInt(e.target.value) || 0 }))} placeholder="100" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200" />
+                    <input type="number" required min={1} value={form.quantity || ''} onChange={(e) => setForm((f) => ({ ...f, quantity: parseInt(e.target.value) || 0 }))} placeholder="100" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Unite</label>
-                    <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200">
+                    <select value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200">
                       <option>sac</option>
                       <option>dose</option>
                       <option>flacon</option>
@@ -491,7 +494,6 @@ export default function AdminStockPage() {
                     </select>
                   </div>
                 </div>
-
                 <div className="flex gap-3 pt-2">
                   <button type="submit" disabled={submitting} className="flex-1 px-6 py-3.5 bg-amber-500 text-white font-semibold rounded-xl hover:bg-amber-600 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-amber-500/25 disabled:opacity-50">
                     {submitting ? 'Enregistrement...' : 'Ajouter au stock'}
@@ -504,9 +506,8 @@ export default function AdminStockPage() {
             </AdminPanel>
           </AdminBentoForm>
 
-          {/* STOCK LIST */}
           <AdminBentoList>
-            <AdminPanel title="Inventaire Complet" description="Tous les articles en stock" accent="stock">
+            <AdminPanel title="Inventaire Complet" description={`${stockTotalElements} articles en stock`} accent="stock">
               <div className="flex flex-col sm:flex-row gap-3 mb-6 animate-fadeIn">
                 <div className="relative flex-1">
                   <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -528,7 +529,11 @@ export default function AdminStockPage() {
                 </div>
               </div>
 
-              {filteredStock.length === 0 ? (
+              {stockPageLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full" />
+                </div>
+              ) : filteredStock.length === 0 ? (
                 <div className="text-center py-12 text-[var(--color-text-muted)]">
                   <p className="text-lg font-medium">Aucun article trouve</p>
                   <p className="text-sm mt-1">Ajoutez un article via le formulaire</p>
@@ -537,20 +542,15 @@ export default function AdminStockPage() {
                 <div className="space-y-3">
                   {filteredStock.map((item, index) => {
                     const config = typeConfig[item.type as keyof typeof typeConfig] || typeConfig.Feed;
-
                     return (
                       <div key={item.id} className="animate-slideUp flex items-center gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] transition-all duration-300 hover:shadow-md" style={{ opacity: 0, animationDelay: `${0.05 + index * 0.03}s`, animationFillMode: 'forwards' }}>
                         <div className={`w-12 h-12 ${config.bgLight} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                          <svg className={`w-6 h-6 ${config.textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={config.icon} />
-                          </svg>
+                          <svg className={`w-6 h-6 ${config.textColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={config.icon} /></svg>
                         </div>
-
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-[var(--color-text-primary)] truncate">{item.name || config.label}</h4>
                           <p className="text-sm text-[var(--color-text-muted)]">{config.pluralLabel}</p>
                         </div>
-
                         <div className="text-right flex-shrink-0">
                           <p className="text-xl font-bold text-[var(--color-text-primary)]">{item.quantity}</p>
                           <p className="text-xs text-[var(--color-text-muted)]">{item.unit}</p>
@@ -560,6 +560,15 @@ export default function AdminStockPage() {
                   })}
                 </div>
               )}
+
+              <Pagination
+                page={stockPage}
+                totalPages={stockTotalPages}
+                totalElements={stockTotalElements}
+                size={PAGE_SIZE}
+                onPageChange={handleStockPageChange}
+                loading={stockPageLoading}
+              />
             </AdminPanel>
           </AdminBentoList>
         </AdminBentoGrid>
@@ -568,7 +577,6 @@ export default function AdminStockPage() {
       {/* ===================== TAB: DISTRIBUTION D'ALIMENT ===================== */}
       {activeTab === 'feeding' && (
         <AdminBentoGrid>
-          {/* FEEDING FORM */}
           <AdminBentoForm>
             <AdminPanel title="Distribuer de l'aliment" description="Deduction automatique du stock" accent="stock">
               <form onSubmit={handleFeedingSubmit} className="space-y-5 animate-slideInLeft" style={{ animationDelay: '0.2s' }}>
@@ -579,124 +587,58 @@ export default function AdminStockPage() {
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-600">{feedingSuccess}</div>
                 )}
 
-                {/* Lot selector */}
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Lot (batch)</label>
-                  <select
-                    required
-                    value={feedingForm.batchId || ''}
-                    onChange={(e) => setFeedingForm((f) => ({ ...f, batchId: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200"
-                  >
+                  <select required value={feedingForm.batchId || ''} onChange={(e) => setFeedingForm((f) => ({ ...f, batchId: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200">
                     <option value="">-- Selectionner un lot actif --</option>
                     {activeBatches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.batchNumber} - {b.strain} ({b.chickenCount} poussins)
-                      </option>
+                      <option key={b.id} value={b.id}>{b.batchNumber} - {b.strain} ({b.chickenCount} poussins)</option>
                     ))}
                   </select>
-                  {activeBatches.length === 0 && (
-                    <p className="text-xs text-amber-600 mt-1">Aucun lot actif disponible</p>
-                  )}
+                  {activeBatches.length === 0 && <p className="text-xs text-amber-600 mt-1">Aucun lot actif disponible</p>}
                 </div>
 
-                {/* Stock item selector */}
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Article de stock (aliment)</label>
-                  <select
-                    required
-                    value={feedingForm.stockItemId || ''}
-                    onChange={(e) => setFeedingForm((f) => ({ ...f, stockItemId: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200"
-                  >
+                  <select required value={feedingForm.stockItemId || ''} onChange={(e) => setFeedingForm((f) => ({ ...f, stockItemId: parseInt(e.target.value) || 0 }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200">
                     <option value="">-- Selectionner un aliment --</option>
                     {feedStockItems.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name || 'Aliment'} - {s.quantity.toFixed(2)} {s.unit} disponible
-                      </option>
+                      <option key={s.id} value={s.id}>{s.name || 'Aliment'} - {s.quantity.toFixed(2)} {s.unit} disponible</option>
                     ))}
                   </select>
-                  {feedStockItems.length === 0 && (
-                    <p className="text-xs text-red-600 mt-1">Aucun article de type Aliment en stock</p>
-                  )}
+                  {feedStockItems.length === 0 && <p className="text-xs text-red-600 mt-1">Aucun article de type Aliment en stock</p>}
                 </div>
 
-                {/* Availability badge */}
                 {selectedStock && (
                   <StockAvailabilityBadge available={selectedStock.quantity} requested={feedingForm.quantity} />
                 )}
 
-                {/* Feed type (auto-filled) */}
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Type d&apos;aliment</label>
-                  <input
-                    type="text"
-                    required
-                    value={feedingForm.feedType}
-                    onChange={(e) => setFeedingForm((f) => ({ ...f, feedType: e.target.value }))}
-                    placeholder="Ex: Aliment Demarrage"
-                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200"
-                  />
+                  <input type="text" required value={feedingForm.feedType} onChange={(e) => setFeedingForm((f) => ({ ...f, feedType: e.target.value }))} placeholder="Ex: Aliment Demarrage" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200" />
                 </div>
 
-                {/* Quantity + Date */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Quantite (kg)</label>
-                    <input
-                      type="number"
-                      required
-                      min={0.01}
-                      step={0.01}
-                      value={feedingForm.quantity || ''}
-                      onChange={(e) => setFeedingForm((f) => ({ ...f, quantity: parseFloat(e.target.value) || 0 }))}
-                      placeholder="50"
-                      className={`w-full px-4 py-3 rounded-xl border bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 transition-all duration-200 ${
-                        selectedStock && feedingForm.quantity > selectedStock.quantity
-                          ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500'
-                          : 'border-[var(--color-border)] focus:ring-amber-500/20 focus:border-amber-500'
-                      }`}
-                    />
+                    <input type="number" required min={0.01} step={0.01} value={feedingForm.quantity || ''} onChange={(e) => setFeedingForm((f) => ({ ...f, quantity: parseFloat(e.target.value) || 0 }))} placeholder="50" className={`w-full px-4 py-3 rounded-xl border bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 transition-all duration-200 ${selectedStock && feedingForm.quantity > selectedStock.quantity ? 'border-red-400 focus:ring-red-500/20 focus:border-red-500' : 'border-[var(--color-border)] focus:ring-amber-500/20 focus:border-amber-500'}`} />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Date</label>
-                    <input
-                      type="date"
-                      required
-                      max={new Date().toISOString().split('T')[0]}
-                      value={feedingForm.feedingDate}
-                      onChange={(e) => setFeedingForm((f) => ({ ...f, feedingDate: e.target.value }))}
-                      className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200"
-                    />
+                    <input type="date" required max={new Date().toISOString().split('T')[0]} value={feedingForm.feedingDate} onChange={(e) => setFeedingForm((f) => ({ ...f, feedingDate: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200" />
                   </div>
                 </div>
 
-                {/* Notes */}
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Notes (optionnel)</label>
-                  <textarea
-                    value={feedingForm.notes || ''}
-                    onChange={(e) => setFeedingForm((f) => ({ ...f, notes: e.target.value || undefined }))}
-                    rows={2}
-                    placeholder="Observations..."
-                    className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200 resize-none"
-                  />
+                  <textarea value={feedingForm.notes || ''} onChange={(e) => setFeedingForm((f) => ({ ...f, notes: e.target.value || undefined }))} rows={2} placeholder="Observations..." className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200 resize-none" />
                 </div>
 
-                {/* Submit */}
                 <div className="flex gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={feedingSubmitting || (selectedStock !== null && feedingForm.quantity > selectedStock.quantity)}
-                    className="flex-1 px-6 py-3.5 bg-amber-500 text-white font-semibold rounded-xl hover:bg-amber-600 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
+                  <button type="submit" disabled={feedingSubmitting || (selectedStock !== null && feedingForm.quantity > selectedStock.quantity)} className="flex-1 px-6 py-3.5 bg-amber-500 text-white font-semibold rounded-xl hover:bg-amber-600 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed">
                     {feedingSubmitting ? 'Enregistrement...' : 'Distribuer et deduire'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { setFeedingForm(initialFeedingForm); setFeedingFormError(null); setFeedingSuccess(null); }}
-                    className="px-6 py-3.5 border-2 border-[var(--color-border)] text-[var(--color-text-body)] font-semibold rounded-xl hover:bg-[var(--color-surface-2)] active:scale-[0.98] transition-all duration-200"
-                  >
+                  <button type="button" onClick={() => { setFeedingForm(initialFeedingForm); setFeedingFormError(null); setFeedingSuccess(null); }} className="px-6 py-3.5 border-2 border-[var(--color-border)] text-[var(--color-text-body)] font-semibold rounded-xl hover:bg-[var(--color-surface-2)] active:scale-[0.98] transition-all duration-200">
                     Annuler
                   </button>
                 </div>
@@ -704,35 +646,28 @@ export default function AdminStockPage() {
             </AdminPanel>
           </AdminBentoForm>
 
-          {/* FEEDING HISTORY */}
           <AdminBentoList>
-            <AdminPanel title="Historique des distributions" description={`${feedings.length} enregistrement${feedings.length > 1 ? 's' : ''}`} accent="stock">
+            <AdminPanel title="Historique des distributions" description={`${feedingTotalElements} enregistrement${feedingTotalElements > 1 ? 's' : ''}`} accent="stock">
               <div className="flex flex-col sm:flex-row gap-3 mb-6 animate-fadeIn">
                 <div className="relative flex-1">
                   <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  <input
-                    type="text"
-                    placeholder="Rechercher par lot, aliment, ouvrier..."
-                    value={feedingSearch}
-                    onChange={(e) => setFeedingSearch(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200"
-                  />
+                  <input type="text" placeholder="Rechercher par lot, aliment, ouvrier..." value={feedingSearch} onChange={(e) => setFeedingSearch(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200" />
                 </div>
-                <select
-                  value={filterBatchId || ''}
-                  onChange={(e) => setFilterBatchId(e.target.value ? parseInt(e.target.value) : null)}
-                  className="px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200"
-                >
+                <select value={filterBatchId || ''} onChange={(e) => setFilterBatchId(e.target.value ? parseInt(e.target.value) : null)} className="px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all duration-200">
                   <option value="">Tous les lots</option>
-                  {batches.map((b) => (
+                  {allBatchesFlat.map((b) => (
                     <option key={b.id} value={b.id}>{b.batchNumber}</option>
                   ))}
                 </select>
               </div>
 
-              {filteredFeedings.length === 0 ? (
+              {feedingPageLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full" />
+                </div>
+              ) : filteredFeedings.length === 0 ? (
                 <div className="text-center py-12 text-[var(--color-text-muted)]">
                   <svg className="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -743,17 +678,12 @@ export default function AdminStockPage() {
               ) : (
                 <div className="space-y-3">
                   {filteredFeedings.map((feeding, index) => (
-                    <div
-                      key={feeding.id}
-                      className="animate-slideUp flex items-center gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] transition-all duration-300 hover:shadow-md"
-                      style={{ opacity: 0, animationDelay: `${0.05 + index * 0.03}s`, animationFillMode: 'forwards' }}
-                    >
+                    <div key={feeding.id} className="animate-slideUp flex items-center gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] transition-all duration-300 hover:shadow-md" style={{ opacity: 0, animationDelay: `${0.05 + index * 0.03}s`, animationFillMode: 'forwards' }}>
                       <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
                         <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
                       </div>
-
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-semibold text-[var(--color-text-primary)] truncate">{feeding.feedType}</h4>
@@ -767,7 +697,6 @@ export default function AdminStockPage() {
                           )}
                         </div>
                       </div>
-
                       <div className="text-right flex-shrink-0">
                         <p className="text-xl font-bold text-[var(--color-text-primary)]">{feeding.quantity}</p>
                         <p className="text-xs text-[var(--color-text-muted)]">kg</p>
@@ -776,6 +705,15 @@ export default function AdminStockPage() {
                   ))}
                 </div>
               )}
+
+              <Pagination
+                page={feedingPage}
+                totalPages={feedingTotalPages}
+                totalElements={feedingTotalElements}
+                size={PAGE_SIZE}
+                onPageChange={handleFeedingPageChange}
+                loading={feedingPageLoading}
+              />
             </AdminPanel>
           </AdminBentoList>
         </AdminBentoGrid>

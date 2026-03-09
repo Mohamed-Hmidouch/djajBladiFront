@@ -3,6 +3,7 @@
 import { apiRequest } from './api';
 import type { UserResponse } from '@/types/auth';
 import type {
+  PageResponse,
   BuildingResponse,
   CreateBuildingRequest,
   BatchResponse,
@@ -33,8 +34,15 @@ export async function createBuilding(
   });
 }
 
-export async function getBuildings(token: string): Promise<BuildingResponse[]> {
-  return apiRequest<BuildingResponse[]>('/admin/buildings', { token });
+export async function getBuildings(
+  token: string,
+  page = 0,
+  size = 5
+): Promise<PageResponse<BuildingResponse>> {
+  return apiRequest<PageResponse<BuildingResponse>>(
+    `/admin/buildings?page=${page}&size=${size}`,
+    { token }
+  );
 }
 
 export async function getBuildingById(
@@ -45,8 +53,23 @@ export async function getBuildingById(
 }
 
 /* Batches */
-export async function getBatches(token: string): Promise<BatchResponse[]> {
-  return apiRequest<BatchResponse[]>('/admin/batches', { token });
+export async function getBatches(
+  token: string,
+  page = 0,
+  size = 5
+): Promise<PageResponse<BatchResponse>> {
+  return apiRequest<PageResponse<BatchResponse>>(
+    `/admin/batches?page=${page}&size=${size}`,
+    { token }
+  );
+}
+
+/** Fetch ALL batches without pagination — used for capacity validation and dropdowns */
+export async function getAllBatchesFlat(token: string): Promise<BatchResponse[]> {
+  return apiRequest<PageResponse<BatchResponse>>(
+    '/admin/batches?page=0&size=1000',
+    { token }
+  ).then((r) => r.content);
 }
 
 export async function createBatch(
@@ -62,9 +85,7 @@ export async function createBatch(
 
 /**
  * Business rule: building capacity.
- * If the building has maxCapacity 900 and already contains batches totalling X chickens,
- * the new batch chickenCount must not exceed (maxCapacity - X).
- * Throws if chickenCount > available capacity.
+ * Uses getAllBatchesFlat to check real capacity across all batches.
  */
 export async function validateBatchCapacity(
   token: string,
@@ -73,7 +94,7 @@ export async function validateBatchCapacity(
 ): Promise<void> {
   const [building, batches] = await Promise.all([
     getBuildingById(token, buildingId),
-    getBatches(token),
+    getAllBatchesFlat(token),
   ]);
   const batchesInBuilding = batches.filter(
     (b) => b.buildingId === buildingId && b.chickenCount != null
@@ -99,8 +120,23 @@ export async function createStockItem(
   });
 }
 
-export async function getStock(token: string): Promise<StockItemResponse[]> {
-  return apiRequest<StockItemResponse[]>('/admin/stock', { token });
+export async function getStock(
+  token: string,
+  page = 0,
+  size = 5
+): Promise<PageResponse<StockItemResponse>> {
+  return apiRequest<PageResponse<StockItemResponse>>(
+    `/admin/stock?page=${page}&size=${size}`,
+    { token }
+  );
+}
+
+/** Fetch ALL stock without pagination — used for feeding form dropdown */
+export async function getAllStockFlat(token: string): Promise<StockItemResponse[]> {
+  return apiRequest<PageResponse<StockItemResponse>>(
+    '/admin/stock?page=0&size=1000',
+    { token }
+  ).then((r) => r.content);
 }
 
 export async function getStockItemById(
@@ -122,8 +158,15 @@ export async function createUser(
   });
 }
 
-export async function getUsers(token: string): Promise<UserResponse[]> {
-  return apiRequest<UserResponse[]>('/admin/users', { token });
+export async function getUsers(
+  token: string,
+  page = 0,
+  size = 5
+): Promise<PageResponse<UserResponse>> {
+  return apiRequest<PageResponse<UserResponse>>(
+    `/admin/users?page=${page}&size=${size}`,
+    { token }
+  );
 }
 
 /* Dashboard Supervision */
@@ -207,12 +250,16 @@ export async function createMortality(
 
 export async function getMortalities(
   token: string,
+  page = 0,
+  size = 5,
   batchId?: number
-): Promise<MortalityResponse[]> {
-  const params = batchId ? `?batchId=${batchId}` : '';
-  return apiRequest<MortalityResponse[]>(`/ouvrier/mortality${params}`, {
-    token,
-  });
+): Promise<PageResponse<MortalityResponse>> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (batchId) params.set('batchId', String(batchId));
+  return apiRequest<PageResponse<MortalityResponse>>(
+    `/ouvrier/mortality?${params.toString()}`,
+    { token }
+  );
 }
 
 /* Feeding (Ouvrier / Admin) */
@@ -229,14 +276,29 @@ export async function createFeeding(
 
 export async function getFeedings(
   token: string,
-  options?: { batchId?: number; startDate?: string; endDate?: string }
-): Promise<FeedingResponse[]> {
+  options?: { batchId?: number; startDate?: string; endDate?: string },
+  page = 0,
+  size = 5
+): Promise<PageResponse<FeedingResponse>> {
   const endDate = options?.endDate || new Date().toISOString().split('T')[0];
-  const start = options?.startDate
-    || (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().split('T')[0]; })();
-  const params = new URLSearchParams({ startDate: start, endDate });
+  const start =
+    options?.startDate ||
+    (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 90);
+      return d.toISOString().split('T')[0];
+    })();
+  const params = new URLSearchParams({
+    startDate: start,
+    endDate,
+    page: String(page),
+    size: String(size),
+  });
   if (options?.batchId) params.set('batchId', String(options.batchId));
-  return apiRequest<FeedingResponse[]>(`/ouvrier/feeding?${params.toString()}`, { token });
+  return apiRequest<PageResponse<FeedingResponse>>(
+    `/ouvrier/feeding?${params.toString()}`,
+    { token }
+  );
 }
 
 /* Health Records (Veterinaire) */

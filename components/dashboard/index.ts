@@ -12,4 +12,4 @@ export {
   AdminBentoGrid,
   AdminBentoForm,
   AdminBentoList,
-} from './AdminPageShell';
+} from './AdminPageShell';export { default as Pagination } from './Pagination';

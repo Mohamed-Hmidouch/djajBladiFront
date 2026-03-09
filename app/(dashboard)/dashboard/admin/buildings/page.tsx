@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { getToken } from '@/lib/jwt';
-import { getBuildings, createBuilding, getBatches } from '@/lib/admin';
+import { getBuildings, createBuilding, getAllBatchesFlat } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import type { BuildingResponse, CreateBuildingRequest, BatchResponse } from '@/types/admin';
 import {
@@ -12,7 +12,8 @@ import {
   AdminBentoGrid,
   AdminBentoForm,
   AdminBentoList,
-} from '@/components/dashboard/AdminPageShell';
+  Pagination,
+} from '@/components/dashboard';
 
 const defaultImage = 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=800&q=80';
 
@@ -26,44 +27,80 @@ const initialForm: CreateBuildingRequest = {
   imageUrl: '',
 };
 
+const PAGE_SIZE = 5;
+
 export default function AdminBuildingsPage() {
   const [buildings, setBuildings] = useState<BuildingWithOccupancy[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [allBatches, setAllBatches] = useState<BatchResponse[]>([]);
 
   const [form, setForm] = useState<CreateBuildingRequest>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (targetPage: number) => {
     const token = getToken();
     if (!token) return;
     try {
       setError(null);
-      const [buildingsData, batchesData] = await Promise.all([
-        getBuildings(token),
-        getBatches(token),
+      const [buildingsPage, batches] = await Promise.all([
+        getBuildings(token, targetPage, PAGE_SIZE),
+        allBatches.length === 0 ? getAllBatchesFlat(token) : Promise.resolve(allBatches),
       ]);
-      const enriched: BuildingWithOccupancy[] = buildingsData.map((b) => {
-        const activeBatches = batchesData.filter(
-          (batch: BatchResponse) => batch.buildingId === b.id && batch.status === 'Active'
+      if (allBatches.length === 0) setAllBatches(batches as BatchResponse[]);
+      const enriched: BuildingWithOccupancy[] = buildingsPage.content.map((b) => {
+        const activeBatches = (batches as BatchResponse[]).filter(
+          (batch) => batch.buildingId === b.id && batch.status === 'Active'
         );
-        const currentOccupancy = activeBatches.reduce((sum: number, batch: BatchResponse) => sum + batch.chickenCount, 0);
+        const currentOccupancy = activeBatches.reduce((sum, batch) => sum + batch.chickenCount, 0);
         return { ...b, currentOccupancy };
       });
       setBuildings(enriched);
+      setTotalPages(buildingsPage.totalPages);
+      setTotalElements(buildingsPage.totalElements);
+      setPage(buildingsPage.page);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur lors du chargement des batiments');
     } finally {
       setLoading(false);
+      setPageLoading(false);
     }
-  }, []);
+  }, [allBatches]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchData(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handlePageChange(newPage: number) {
+    setPageLoading(true);
+    const token = getToken();
+    if (!token) return;
+    getBuildings(token, newPage, PAGE_SIZE).then((buildingsPage) => {
+      const enriched: BuildingWithOccupancy[] = buildingsPage.content.map((b) => {
+        const activeBatches = allBatches.filter(
+          (batch) => batch.buildingId === b.id && batch.status === 'Active'
+        );
+        const currentOccupancy = activeBatches.reduce((sum, batch) => sum + batch.chickenCount, 0);
+        return { ...b, currentOccupancy };
+      });
+      setBuildings(enriched);
+      setTotalPages(buildingsPage.totalPages);
+      setTotalElements(buildingsPage.totalElements);
+      setPage(buildingsPage.page);
+    }).catch((err) => {
+      setError(err instanceof ApiError ? err.message : 'Erreur');
+    }).finally(() => {
+      setPageLoading(false);
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,7 +115,8 @@ export default function AdminBuildingsPage() {
         imageUrl: form.imageUrl || undefined,
       });
       setForm(initialForm);
-      await fetchData();
+      setAllBatches([]);
+      fetchData(page);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Erreur lors de la creation');
     } finally {
@@ -106,7 +144,7 @@ export default function AdminBuildingsPage() {
         <div className="bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl p-6 text-center">
           <p className="text-[var(--color-brand)] font-semibold mb-2">Erreur</p>
           <p className="text-[var(--color-text-muted)] text-sm">{error}</p>
-          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 transition-colors">
+          <button onClick={() => fetchData(0)} className="mt-4 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 transition-colors">
             Reessayer
           </button>
         </div>
@@ -120,10 +158,9 @@ export default function AdminBuildingsPage() {
       subtitle="Visualisez et gerez tous vos batiments d'elevage. Surveillez la capacite, l'occupation et l'etat de chaque installation."
       accent="primary"
     >
-      {/* STATS OVERVIEW */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Total Batiments', value: buildings.length, gradient: 'from-[var(--color-primary)] to-[#2d4a6f]', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+          { label: 'Total Batiments', value: totalElements, gradient: 'from-[var(--color-primary)] to-[#2d4a6f]', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
           { label: 'Capacite Totale', value: totalCapacity.toLocaleString(), gradient: 'from-emerald-500 to-emerald-600', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
           { label: 'Occupation', value: totalOccupancy.toLocaleString(), gradient: 'from-[var(--color-brand)] to-[#e85d4a]', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
           { label: 'Taux Occupation', value: `${occupancyRate}%`, gradient: 'from-violet-500 to-purple-600', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
@@ -143,14 +180,12 @@ export default function AdminBuildingsPage() {
       </div>
 
       <AdminBentoGrid>
-        {/* ADD BUILDING FORM */}
         <AdminBentoForm>
           <AdminPanel title="Nouveau Batiment" description="Ajouter un nouveau batiment a votre exploitation" accent="primary">
             <form onSubmit={handleSubmit} className="space-y-5 animate-slideInLeft" style={{ animationDelay: '0.2s' }}>
               {formError && (
                 <div className="p-3 bg-[var(--color-brand)]/10 border border-[var(--color-brand)]/20 rounded-xl text-sm text-[var(--color-brand)]">{formError}</div>
               )}
-
               <div className="relative aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-[var(--color-surface-2)] to-[var(--color-surface-3)] group cursor-pointer border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-primary)]/40 transition-colors duration-300">
                 {form.imageUrl ? (
                   <Image src={form.imageUrl} alt="Apercu" fill className="object-cover" unoptimized />
@@ -165,27 +200,23 @@ export default function AdminBuildingsPage() {
                   </div>
                 )}
               </div>
-
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Nom du batiment</label>
-                  <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Batiment Epsilon" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition-all duration-200" />
+                  <input type="text" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ex: Batiment Epsilon" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition-all duration-200" />
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Capacite maximale</label>
                   <div className="relative">
-                    <input type="number" required min={1} value={form.maxCapacity || ''} onChange={e => setForm(f => ({ ...f, maxCapacity: parseInt(e.target.value) || 0 }))} placeholder="10000" className="w-full px-4 py-3 pr-20 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition-all duration-200" />
+                    <input type="number" required min={1} value={form.maxCapacity || ''} onChange={(e) => setForm((f) => ({ ...f, maxCapacity: parseInt(e.target.value) || 0 }))} placeholder="10000" className="w-full px-4 py-3 pr-20 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition-all duration-200" />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)] font-medium">poussins</span>
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">URL de l&apos;image</label>
-                  <input type="url" value={form.imageUrl || ''} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://example.com/batiment.jpg" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition-all duration-200" />
+                  <input type="url" value={form.imageUrl || ''} onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))} placeholder="https://example.com/batiment.jpg" className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition-all duration-200" />
                 </div>
               </div>
-
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={submitting} className="flex-1 px-6 py-3.5 bg-[var(--color-primary)] text-white font-semibold rounded-xl hover:bg-[var(--color-primary-hover)] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[var(--color-primary)]/25 disabled:opacity-50">
                   {submitting ? 'Ajout...' : 'Ajouter le batiment'}
@@ -198,12 +229,11 @@ export default function AdminBuildingsPage() {
           </AdminPanel>
         </AdminBentoForm>
 
-        {/* BUILDINGS LIST */}
         <AdminBentoList>
           <AdminPanel title="Tous les Batiments" description="Cliquez sur un batiment pour voir les details" accent="primary">
             <div className="flex items-center justify-between mb-6 animate-fadeIn">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-[var(--color-text-body)]">{buildings.length} batiments</span>
+                <span className="text-sm font-medium text-[var(--color-text-body)]">{totalElements} batiments</span>
               </div>
               <div className="flex gap-1 p-1 bg-[var(--color-surface-2)] rounded-lg">
                 <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-all duration-200 ${viewMode === 'grid' ? 'bg-white shadow-sm text-[var(--color-primary)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-body)]'}`}>
@@ -215,7 +245,11 @@ export default function AdminBuildingsPage() {
               </div>
             </div>
 
-            {buildings.length === 0 ? (
+            {pageLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin w-8 h-8 border-4 border-[var(--color-primary)] border-t-transparent rounded-full" />
+              </div>
+            ) : buildings.length === 0 ? (
               <div className="text-center py-12 text-[var(--color-text-muted)]">
                 <p className="text-lg font-medium">Aucun batiment</p>
                 <p className="text-sm mt-1">Ajoutez votre premier batiment via le formulaire</p>
@@ -225,7 +259,6 @@ export default function AdminBuildingsPage() {
                 {buildings.map((building, index) => {
                   const occupancyPct = building.maxCapacity > 0 ? building.currentOccupancy / building.maxCapacity : 0;
                   const imgSrc = building.imageUrl || defaultImage;
-
                   return (
                     <article key={building.id} onClick={() => setSelectedBuilding(selectedBuilding === building.id ? null : building.id)} className={`animate-slideUp group cursor-pointer rounded-2xl border overflow-hidden transition-all duration-300 ease-out ${selectedBuilding === building.id ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/20 shadow-xl' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/40 hover:shadow-lg'}`} style={{ opacity: 0, animationDelay: `${0.1 + index * 0.05}s`, animationFillMode: 'forwards' }}>
                       {viewMode === 'grid' ? (
@@ -280,6 +313,15 @@ export default function AdminBuildingsPage() {
                 })}
               </div>
             )}
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalElements={totalElements}
+              size={PAGE_SIZE}
+              onPageChange={handlePageChange}
+              loading={pageLoading}
+            />
           </AdminPanel>
         </AdminBentoList>
       </AdminBentoGrid>
