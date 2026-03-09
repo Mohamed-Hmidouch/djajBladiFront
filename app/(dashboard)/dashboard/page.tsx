@@ -201,7 +201,7 @@ function BatchMiniChart({
         />
 
         {/* x labels (first, mid, last) */}
-        {[0, Math.floor((n - 1) / 2), n - 1].map((idx) => (
+        {[...new Set([0, Math.floor((n - 1) / 2), n - 1])].map((idx) => (
           <text
             key={idx}
             x={xPos(idx)}
