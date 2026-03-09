@@ -11,9 +11,9 @@ import {
   getToken,
 } from '@/lib/jwt';
 import {
+  getAllBatchesFlat,
+  getAllStockFlat,
   getBuildings,
-  getBatches,
-  getStock,
   getUsers,
   getSupervisionDashboard,
   approveHealthRecord,
@@ -340,13 +340,13 @@ export default function DashboardPage() {
     if (!token) return;
     try {
       setDataError(null);
-      const [buildings, batches, stock, users] = await Promise.all([
-        getBuildings(token),
-        getBatches(token),
-        getStock(token),
-        getUsers(token),
+      const [buildingsPage, batches, stock, usersPage] = await Promise.all([
+        getBuildings(token, 0, 1000),
+        getAllBatchesFlat(token),
+        getAllStockFlat(token),
+        getUsers(token, 0, 1000),
       ]);
-      setData({ buildings, batches, stock, users });
+      setData({ buildings: buildingsPage.content, batches, stock, users: usersPage.content });
     } catch (err) {
       setDataError(err instanceof ApiError ? err.message : 'Erreur chargement');
     }
