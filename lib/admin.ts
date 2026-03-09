@@ -20,6 +20,7 @@ import type {
   FeedingResponse,
   CreateFeedingRequest,
   CreateHealthRecordRequest,
+  BatchCostBreakdownResponse,
 } from '@/types/admin';
 
 /* Buildings */
@@ -311,4 +312,17 @@ export async function createHealthRecord(
     body: JSON.stringify(body),
     token,
   });
+}
+
+/* Financial */
+export async function getBatchCost(
+  token: string,
+  batchId: number,
+  fixedCharges?: number
+): Promise<BatchCostBreakdownResponse> {
+  const params = fixedCharges != null ? `?fixedCharges=${fixedCharges}` : '';
+  return apiRequest<BatchCostBreakdownResponse>(
+    `/admin/batches/${batchId}/cost${params}`,
+    { token }
+  );
 }
