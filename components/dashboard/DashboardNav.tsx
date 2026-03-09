@@ -69,6 +69,12 @@ export function DashboardNav() {
               Stock
             </Link>
             <Link
+              href="/dashboard/admin/finances"
+              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
+            >
+              Finances
+            </Link>
+            <Link
               href="/dashboard/settings"
               className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
             >

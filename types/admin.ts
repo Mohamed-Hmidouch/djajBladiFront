@@ -242,3 +242,34 @@ export interface SupervisionDashboardResponse {
   pendingAlerts: HealthAlertSummary[];
   fcrSummaries: BatchFcrSummary[];
 }
+
+/* Financial - Cout de Revient Dynamique */
+export interface FeedLineItem {
+  stockItemId: number;
+  stockItemName: string | null;
+  feedType: string;
+  totalQuantityKg: number;
+  unitPriceDH: number;
+  subtotalDH: number;
+}
+
+export interface BatchCostBreakdownResponse {
+  batchId: number;
+  batchNumber: string;
+  strain: string | null;
+  arrivalDate: string;
+  status: BatchStatus;
+  initialChickenCount: number;
+  aliveChickens: number;
+  totalMortality: number;
+  chickenCostDH: number;
+  feedCostDH: number;
+  medicationCostDH: number;
+  fixedChargesDH: number;
+  totalCostDH: number;
+  costPerChickenDH: number | null;
+  totalRevenueDH: number;
+  estimatedProfitDH: number;
+  profitMarginPct: number | null;
+  feedLines: FeedLineItem[];
+}
