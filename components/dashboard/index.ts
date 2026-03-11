@@ -12,4 +12,8 @@ export {
   AdminBentoGrid,
   AdminBentoForm,
   AdminBentoList,
-} from './AdminPageShell';export { default as Pagination } from './Pagination';
+} from './AdminPageShell';
+export { default as Pagination } from './Pagination';
+export { default as ActiveBatchesGrid } from './ActiveBatchesGrid';
+export { default as FeedingQuickModal } from './FeedingQuickModal';
+export { default as MortalityQuickModal } from './MortalityQuickModal';

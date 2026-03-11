@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getToken } from '@/lib/jwt';
-import { getUsers, createUser } from '@/lib/admin';
+import { getUsers, createUser, adminChangeUserPassword } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import type { UserResponse } from '@/types/auth';
 import type { AdminCreateUserRequest } from '@/types/admin';
@@ -61,6 +61,198 @@ function UserAvatar({ fullName, role, size = 'md' }: { fullName: string; role: s
   );
 }
 
+function ChangePasswordModal({ user, onClose, onSuccess }: { user: UserResponse; onClose: () => void; onSuccess: () => void }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const strength = (() => {
+    const p = newPassword;
+    let score = 0;
+    if (p.length >= 8) score++;
+    if (p.length >= 12) score++;
+    if (/[A-Z]/.test(p)) score++;
+    if (/[0-9]/.test(p)) score++;
+    if (/[^A-Za-z0-9]/.test(p)) score++;
+    return score;
+  })();
+  const strengthLabels = ['', 'Tres faible', 'Faible', 'Moyen', 'Fort', 'Tres fort'];
+  const strengthColors = ['', 'bg-red-500', 'bg-orange-400', 'bg-amber-400', 'bg-emerald-400', 'bg-emerald-600'];
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword !== confirm) { setError('Les mots de passe ne correspondent pas'); return; }
+    if (newPassword.length < 8) { setError('Minimum 8 caracteres'); return; }
+    const token = getToken();
+    if (!token) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await adminChangeUserPassword(token, user.id, newPassword);
+      setDone(true);
+      setTimeout(() => { onSuccess(); onClose(); }, 1200);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Erreur lors du changement de mot de passe');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const config = roleConfig[user.role as keyof typeof roleConfig] || roleConfig.Client;
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div
+        className="w-full max-w-md bg-[var(--color-surface-1)] rounded-3xl shadow-2xl border border-[var(--color-border)] animate-slideUp overflow-hidden"
+        style={{ opacity: 0, animationFillMode: 'forwards', animationDuration: '0.25s' }}
+      >
+        {/* Header */}
+        <div className={`bg-gradient-to-r ${config.gradient} p-6 text-white relative`}>
+          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-xl font-bold backdrop-blur-sm">
+              {user.fullName.trim().split(/\s+/).map((p: string) => p[0]).slice(0, 2).join('').toUpperCase()}
+            </div>
+            <div>
+              <p className="text-white/70 text-sm font-medium">Changer le mot de passe de</p>
+              <p className="text-lg font-bold">{user.fullName}</p>
+              <p className="text-white/60 text-xs">{user.email}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Form */}
+        <div className="p-6">
+          {done ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <p className="font-bold text-[var(--color-text-primary)] text-lg">Mot de passe modifie !</p>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1">L&apos;utilisateur devra se reconnecter.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  {error}
+                </div>
+              )}
+
+              {/* New Password */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Nouveau mot de passe</label>
+                <div className="relative">
+                  <input
+                    type={showNew ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    placeholder="Min. 8 caracteres"
+                    className="w-full px-4 py-3 pr-11 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] transition-all"
+                  />
+                  <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-body)] transition-colors">
+                    {showNew
+                      ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                      : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    }
+                  </button>
+                </div>
+                {/* Strength bar */}
+                {newPassword.length > 0 && (
+                  <div className="mt-2">
+                    <div className="flex gap-1 mb-1">
+                      {[1,2,3,4,5].map((i) => (
+                        <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= strength ? strengthColors[strength] : 'bg-[var(--color-border)]'}`} />
+                      ))}
+                    </div>
+                    <p className={`text-xs font-medium ${strength <= 2 ? 'text-red-500' : strength === 3 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                      {strengthLabels[strength]}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Confirm */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Confirmer le mot de passe</label>
+                <div className="relative">
+                  <input
+                    type={showConfirm ? 'text' : 'password'}
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    required
+                    placeholder="Retapez le mot de passe"
+                    className={`w-full px-4 py-3 pr-11 rounded-xl border bg-[var(--color-surface-2)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 transition-all ${
+                      confirm.length > 0
+                        ? newPassword === confirm
+                          ? 'border-emerald-400 focus:ring-emerald-400/20 focus:border-emerald-400'
+                          : 'border-red-400 focus:ring-red-400/20 focus:border-red-400'
+                        : 'border-[var(--color-border)] focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]'
+                    }`}
+                  />
+                  <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-body)] transition-colors">
+                    {showConfirm
+                      ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                      : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    }
+                  </button>
+                  {confirm.length > 0 && (
+                    <div className={`absolute right-10 top-1/2 -translate-y-1/2 ${newPassword === confirm ? 'text-emerald-500' : 'text-red-400'}`}>
+                      {newPassword === confirm
+                        ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                        : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      }
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Security notice */}
+              <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-xs text-amber-700">L&apos;utilisateur sera deconnecte automatiquement. Communiquez le nouveau mot de passe par un canal securise.</p>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={onClose} className="flex-1 px-4 py-3 border-2 border-[var(--color-border)] text-[var(--color-text-body)] font-semibold rounded-xl hover:bg-[var(--color-surface-2)] active:scale-[0.98] transition-all">
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || newPassword !== confirm || newPassword.length < 8}
+                  className="flex-1 px-4 py-3 font-semibold rounded-xl text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  style={{ background: `linear-gradient(135deg, var(--color-primary), #2d4a6f)`, boxShadow: '0 4px 15px rgba(37,71,118,0.3)' }}
+                >
+                  {submitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      Enregistrement...
+                    </span>
+                  ) : 'Changer le mot de passe'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const initialForm: AdminCreateUserRequest = {
   firstName: '',
   lastName: '',
@@ -87,6 +279,7 @@ export default function AdminUsersPage() {
   const [form, setForm] = useState<AdminCreateUserRequest>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [changePasswordUser, setChangePasswordUser] = useState<UserResponse | null>(null);
 
   const fetchUsers = useCallback(async (targetPage: number) => {
     const token = getToken();
@@ -181,6 +374,13 @@ export default function AdminUsersPage() {
 
   return (
     <AdminPageShell title="Gestion de l'Equipe" subtitle="Gerez les comptes utilisateurs, les roles et les permissions de votre equipe." accent="brand">
+      {changePasswordUser && (
+        <ChangePasswordModal
+          user={changePasswordUser}
+          onClose={() => setChangePasswordUser(null)}
+          onSuccess={() => fetchUsers(page)}
+        />
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="animate-slideUp stagger-1 bg-gradient-to-br from-[var(--color-brand)] to-[#e85d4a] rounded-2xl p-5 text-white shadow-lg card-lift" style={{ opacity: 0, animationFillMode: 'forwards' }}>
           <div className="flex items-center justify-between">
@@ -341,7 +541,7 @@ export default function AdminUsersPage() {
                           </span>
                           <span className="text-xs text-[var(--color-text-muted)]">{formatLastLogin(user.lastLoginAt)}</span>
                         </div>
-                        <div className={`overflow-hidden transition-all duration-300 ${selectedUser === user.id ? 'max-h-40 mt-4 pt-4 border-t border-[var(--color-border)]' : 'max-h-0'}`}>
+                        <div className={`overflow-hidden transition-all duration-300 ${selectedUser === user.id ? 'max-h-56 mt-4 pt-4 border-t border-[var(--color-border)]' : 'max-h-0'}`}>
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
@@ -351,6 +551,13 @@ export default function AdminUsersPage() {
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                               Membre depuis {new Date(user.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
                             </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setChangePasswordUser(user); }}
+                              className="mt-1 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-[var(--color-primary)]/30 text-[var(--color-primary)] text-xs font-semibold hover:bg-[var(--color-primary)]/5 hover:border-[var(--color-primary)] active:scale-[0.98] transition-all duration-200"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                              Changer le mot de passe
+                            </button>
                           </div>
                         </div>
                       </div>
