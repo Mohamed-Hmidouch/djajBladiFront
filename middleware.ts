@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const AUTH_PATHS = ['/login', '/register'];
-const PROTECTED_PREFIX = '/dashboard';
+const PROTECTED_PREFIXES = ['/admin', '/ouvrier', '/veterinaire', '/client', '/dashboard'];
 const TOKEN_KEY = 'djajbladi_token';
 
 function isTokenValid(token: string): boolean {
@@ -25,10 +25,11 @@ export function middleware(request: NextRequest) {
   const authenticated = token ? isTokenValid(token) : false;
 
   if (AUTH_PATHS.includes(pathname) && authenticated) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  if (pathname.startsWith(PROTECTED_PREFIX) && !authenticated) {
+  const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  if (isProtected && !authenticated) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
@@ -38,5 +39,13 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/login', '/register', '/dashboard/:path*'],
+  matcher: [
+    '/login',
+    '/register',
+    '/dashboard',
+    '/admin/:path*',
+    '/ouvrier/:path*',
+    '/veterinaire/:path*',
+    '/client/:path*',
+  ],
 };

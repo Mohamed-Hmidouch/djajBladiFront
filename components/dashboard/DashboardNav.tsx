@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { getUserRole, clearTokens, getCurrentUser } from '@/lib/jwt';
+import { getUserRole, clearTokens } from '@/lib/jwt';
 
 /* ============================================
    SECURE DASHBOARD NAV
@@ -15,122 +14,52 @@ import { getUserRole, clearTokens, getCurrentUser } from '@/lib/jwt';
    ============================================ */
 
 export function DashboardNav() {
-  const router = useRouter();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
-    // SECURITY: Get role from JWT, not localStorage
     const role = getUserRole();
     setUserRole(role);
   }, []);
 
   const handleLogout = () => {
-    // SECURITY: clearTokens also removes any legacy role/email storage
     clearTokens();
-    router.push('/login');
+    window.location.href = '/login';
   };
 
   return (
     <nav className="flex items-center gap-[var(--space-md)]">
       {/* Desktop Navigation */}
       <div className="hidden md:flex items-center gap-[var(--space-lg)]">
-        <Link
-          href="/dashboard"
-          className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-        >
-          Dashboard
-        </Link>
-
         {userRole === 'Admin' && (
           <>
-            <Link
-              href="/dashboard/admin/users"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Users
-            </Link>
-            <Link
-              href="/dashboard/admin/buildings"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Buildings
-            </Link>
-            <Link
-              href="/dashboard/admin/batches"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Batches
-            </Link>
-            <Link
-              href="/dashboard/admin/stock"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Stock
-            </Link>
-            <Link
-              href="/dashboard/admin/finances"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Finances
-            </Link>
-            <Link
-              href="/dashboard/settings"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Settings
-            </Link>
+            <Link href="/admin" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Hub</Link>
+            <Link href="/admin/users" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Equipe</Link>
+            <Link href="/admin/buildings" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Batiments</Link>
+            <Link href="/admin/batches" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Lots</Link>
+            <Link href="/admin/stock" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Stock</Link>
+            <Link href="/admin/finances" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Finances</Link>
           </>
         )}
 
         {userRole === 'Veterinaire' && (
           <>
-            <Link
-              href="/dashboard/health"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Health Records
-            </Link>
-            <Link
-              href="/dashboard/vaccinations"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Vaccinations
-            </Link>
+            <Link href="/veterinaire" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Dashboard</Link>
+            <Link href="/veterinaire/health" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Dossiers Sante</Link>
           </>
         )}
 
         {userRole === 'Ouvrier' && (
           <>
-            <Link
-              href="/dashboard/tasks"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Tasks
-            </Link>
-            <Link
-              href="/dashboard/inventory"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Inventory
-            </Link>
+            <Link href="/ouvrier" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Dashboard</Link>
+            <Link href="/ouvrier/feeding" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Alimentation</Link>
+            <Link href="/ouvrier/tasks" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Mortalite</Link>
           </>
         )}
 
         {userRole === 'Client' && (
           <>
-            <Link
-              href="/dashboard/orders"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Orders
-            </Link>
-            <Link
-              href="/dashboard/products"
-              className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium"
-            >
-              Products
-            </Link>
+            <Link href="/client" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Dashboard</Link>
           </>
         )}
       </div>
@@ -162,14 +91,14 @@ export function DashboardNav() {
               <p className="text-sm font-medium text-[var(--color-text-primary)]">{userRole}</p>
             </div>
             <Link
-              href="/dashboard/profile"
+              href="/profile"
               className="block px-4 py-2 text-sm text-[var(--color-text-body)] hover:bg-[var(--color-surface-2)] transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >
               My Profile
             </Link>
             <Link
-              href="/dashboard/settings"
+              href="/settings"
               className="block px-4 py-2 text-sm text-[var(--color-text-body)] hover:bg-[var(--color-surface-2)] transition-colors"
               onClick={() => setIsMenuOpen(false)}
             >

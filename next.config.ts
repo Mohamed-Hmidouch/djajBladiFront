@@ -8,23 +8,23 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: '/auth/:path*',
+        source: '/api/auth/:path*',
         destination: `${API_URL}/api/auth/:path*`,
       },
       {
-        source: '/admin/:path*',
+        source: '/api/admin/:path*',
         destination: `${API_URL}/api/admin/:path*`,
       },
       {
-        source: '/users/:path*',
+        source: '/api/users/:path*',
         destination: `${API_URL}/api/users/:path*`,
       },
       {
-        source: '/ouvrier/:path*',
+        source: '/api/ouvrier/:path*',
         destination: `${API_URL}/api/ouvrier/:path*`,
       },
       {
-        source: '/vet/:path*',
+        source: '/api/vet/:path*',
         destination: `${API_URL}/api/vet/:path*`,
       },
     ];

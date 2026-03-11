@@ -58,9 +58,9 @@ export function AdminGuard({ children }: AdminGuardProps) {
       
       // 4. Vérifier le rôle Admin
       if (role !== 'Admin') {
-        // Log pour debugging (peut être retiré en production)
-        console.warn('[AdminGuard] Accès refusé. Rôle détecté:', role);
-        router.replace('/dashboard');
+        // Log pour debugging (peut etre retire en production)
+        console.warn('[AdminGuard] Acces refuse. Role detecte:', role);
+        router.replace('/');
         return;
       }
 

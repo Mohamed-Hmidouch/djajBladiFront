@@ -30,6 +30,7 @@ import type {
   BatchFcrSummary,
 } from '@/types/admin';
 import type { UserResponse } from '@/types/auth';
+import ActiveBatchesGrid from '@/components/dashboard/ActiveBatchesGrid';
 
 interface UserInfo {
   email: string;
@@ -45,10 +46,10 @@ interface DashboardData {
 }
 
 const quickAccessLinks = [
-  { href: '/dashboard/admin/buildings', label: 'Batiments', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', gradient: 'from-[var(--color-primary)] to-[#2d4a6f]' },
-  { href: '/dashboard/admin/batches', label: 'Lots', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', gradient: 'from-emerald-500 to-emerald-600' },
-  { href: '/dashboard/admin/stock', label: 'Stock', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', gradient: 'from-amber-500 to-amber-600' },
-  { href: '/dashboard/admin/users', label: 'Equipe', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', gradient: 'from-[var(--color-brand)] to-[#e85d4a]' },
+  { href: '/admin/buildings', label: 'Batiments', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', gradient: 'from-[var(--color-primary)] to-[#2d4a6f]' },
+  { href: '/admin/batches', label: 'Lots', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', gradient: 'from-emerald-500 to-emerald-600' },
+  { href: '/admin/stock', label: 'Stock', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', gradient: 'from-amber-500 to-amber-600' },
+  { href: '/admin/users', label: 'Equipe', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', gradient: 'from-[var(--color-brand)] to-[#e85d4a]' },
 ];
 
 function MiniChart({ data, color }: { data: number[]; color: string }) {
@@ -475,8 +476,8 @@ export default function DashboardPage() {
             <p className="text-white/80">Voici un apercu de votre exploitation avicole.</p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <Link href="/dashboard/admin/batches" className="px-4 py-2 bg-white text-[var(--color-primary)] font-semibold rounded-xl hover:bg-white/90 active:scale-[0.98] transition-all duration-200 shadow-lg text-sm">+ Nouveau Lot</Link>
-            <Link href="/dashboard/admin/stock" className="px-4 py-2 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 active:scale-[0.98] transition-all duration-200 backdrop-blur-sm text-sm">Gerer Stock</Link>
+            <Link href="/admin/batches" className="px-4 py-2 bg-white text-[var(--color-primary)] font-semibold rounded-xl hover:bg-white/90 active:scale-[0.98] transition-all duration-200 shadow-lg text-sm">+ Nouveau Lot</Link>
+            <Link href="/admin/stock" className="px-4 py-2 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 active:scale-[0.98] transition-all duration-200 backdrop-blur-sm text-sm">Gerer Stock</Link>
           </div>
         </div>
       </div>
@@ -541,6 +542,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ============ ROW ACTION HUB: ACTIVE BATCHES GRID ============ */}
+      <div
+        className="animate-slideUp bg-[var(--color-surface-1)] rounded-2xl border border-[var(--color-border)] p-5"
+        style={{ opacity: 0, animationDelay: '0.18s', animationFillMode: 'forwards' }}
+      >
+        <ActiveBatchesGrid
+          batches={activeBatches}
+          loading={isLoading || !data}
+          onActionSuccess={fetchDashboardData}
+        />
+      </div>
+
       {/* ============ ROW 3: QUICK ACCESS + RECENT BATCHES + STOCK side by side ============ */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
@@ -561,7 +574,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-5 animate-slideUp bg-[var(--color-surface-1)] rounded-2xl border border-[var(--color-border)] p-4" style={{ opacity: 0, animationDelay: '0.15s', animationFillMode: 'forwards' }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Derniers Lots</h2>
-            <Link href="/dashboard/admin/batches" className="text-xs text-[var(--color-primary)] hover:underline">Voir tout</Link>
+            <Link href="/admin/batches" className="text-xs text-[var(--color-primary)] hover:underline">Voir tout</Link>
           </div>
           {data && data.batches.length > 0 ? (
             <div className="space-y-2">
@@ -589,7 +602,7 @@ export default function DashboardPage() {
           ) : (
             <div className="text-center py-6 text-[var(--color-text-muted)]">
               <p className="text-sm">Aucun lot enregistre</p>
-              <Link href="/dashboard/admin/batches" className="text-xs text-[var(--color-primary)] hover:underline mt-1 inline-block">Creer un lot</Link>
+              <Link href="/admin/batches" className="text-xs text-[var(--color-primary)] hover:underline mt-1 inline-block">Creer un lot</Link>
             </div>
           )}
         </div>
@@ -599,7 +612,7 @@ export default function DashboardPage() {
           <div className="animate-slideUp bg-[var(--color-surface-1)] rounded-2xl border border-[var(--color-border)] p-4 flex-1" style={{ opacity: 0, animationDelay: '0.2s', animationFillMode: 'forwards' }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Resume Stock</h2>
-              <Link href="/dashboard/admin/stock" className="text-xs text-[var(--color-primary)] hover:underline">Gerer</Link>
+              <Link href="/admin/stock" className="text-xs text-[var(--color-primary)] hover:underline">Gerer</Link>
             </div>
             {data && data.stock.length > 0 ? (
               <div className="space-y-2">
@@ -627,7 +640,7 @@ export default function DashboardPage() {
             ) : (
               <div className="text-center py-4 text-[var(--color-text-muted)]">
                 <p className="text-xs">Aucun article en stock</p>
-                <Link href="/dashboard/admin/stock" className="text-xs text-[var(--color-primary)] hover:underline mt-1 inline-block">Ajouter du stock</Link>
+                <Link href="/admin/stock" className="text-xs text-[var(--color-primary)] hover:underline mt-1 inline-block">Ajouter du stock</Link>
               </div>
             )}
           </div>

@@ -28,7 +28,7 @@ export async function createBuilding(
   token: string,
   body: CreateBuildingRequest
 ): Promise<BuildingResponse> {
-  return apiRequest<BuildingResponse>('/admin/buildings', {
+  return apiRequest<BuildingResponse>('/api/admin/buildings', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -41,7 +41,7 @@ export async function getBuildings(
   size = 5
 ): Promise<PageResponse<BuildingResponse>> {
   return apiRequest<PageResponse<BuildingResponse>>(
-    `/admin/buildings?page=${page}&size=${size}`,
+    `/api/admin/buildings?page=${page}&size=${size}`,
     { token }
   );
 }
@@ -50,7 +50,7 @@ export async function getBuildingById(
   token: string,
   id: number
 ): Promise<BuildingResponse> {
-  return apiRequest<BuildingResponse>(`/admin/buildings/${id}`, { token });
+  return apiRequest<BuildingResponse>(`/api/admin/buildings/${id}`, { token });
 }
 
 /* Batches */
@@ -60,7 +60,7 @@ export async function getBatches(
   size = 5
 ): Promise<PageResponse<BatchResponse>> {
   return apiRequest<PageResponse<BatchResponse>>(
-    `/admin/batches?page=${page}&size=${size}`,
+    `/api/admin/batches?page=${page}&size=${size}`,
     { token }
   );
 }
@@ -68,7 +68,7 @@ export async function getBatches(
 /** Fetch ALL batches without pagination — used for capacity validation and dropdowns */
 export async function getAllBatchesFlat(token: string): Promise<BatchResponse[]> {
   return apiRequest<PageResponse<BatchResponse>>(
-    '/admin/batches?page=0&size=1000',
+    '/api/admin/batches?page=0&size=1000',
     { token }
   ).then((r) => r.content);
 }
@@ -77,7 +77,7 @@ export async function createBatch(
   token: string,
   body: CreateBatchRequest
 ): Promise<BatchResponse> {
-  return apiRequest<BatchResponse>('/admin/batches', {
+  return apiRequest<BatchResponse>('/api/admin/batches', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -114,7 +114,7 @@ export async function createStockItem(
   token: string,
   body: CreateStockRequest
 ): Promise<StockItemResponse> {
-  return apiRequest<StockItemResponse>('/admin/stock', {
+  return apiRequest<StockItemResponse>('/api/admin/stock', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -127,7 +127,7 @@ export async function getStock(
   size = 5
 ): Promise<PageResponse<StockItemResponse>> {
   return apiRequest<PageResponse<StockItemResponse>>(
-    `/admin/stock?page=${page}&size=${size}`,
+    `/api/admin/stock?page=${page}&size=${size}`,
     { token }
   );
 }
@@ -135,7 +135,23 @@ export async function getStock(
 /** Fetch ALL stock without pagination — used for feeding form dropdown */
 export async function getAllStockFlat(token: string): Promise<StockItemResponse[]> {
   return apiRequest<PageResponse<StockItemResponse>>(
-    '/admin/stock?page=0&size=1000',
+    '/api/admin/stock?page=0&size=1000',
+    { token }
+  ).then((r) => r.content);
+}
+
+/** Ouvrier: read-only batch list — uses /api/ouvrier/batches (accessible by OUVRIER + ADMIN) */
+export async function getOuvrierBatchesFlat(token: string): Promise<BatchResponse[]> {
+  return apiRequest<PageResponse<BatchResponse>>(
+    '/api/ouvrier/batches?page=0&size=1000',
+    { token }
+  ).then((r) => r.content);
+}
+
+/** Ouvrier: read-only stock list — uses /api/ouvrier/stock (accessible by OUVRIER + ADMIN) */
+export async function getOuvrierStockFlat(token: string): Promise<StockItemResponse[]> {
+  return apiRequest<PageResponse<StockItemResponse>>(
+    '/api/ouvrier/stock?page=0&size=1000',
     { token }
   ).then((r) => r.content);
 }
@@ -144,7 +160,7 @@ export async function getStockItemById(
   token: string,
   id: number
 ): Promise<StockItemResponse> {
-  return apiRequest<StockItemResponse>(`/admin/stock/${id}`, { token });
+  return apiRequest<StockItemResponse>(`/api/admin/stock/${id}`, { token });
 }
 
 /* Users (Admin creates Ouvrier / Veterinaire) */
@@ -152,7 +168,7 @@ export async function createUser(
   token: string,
   body: AdminCreateUserRequest
 ): Promise<UserResponse> {
-  return apiRequest<UserResponse>('/admin/users', {
+  return apiRequest<UserResponse>('/api/admin/users', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -165,9 +181,21 @@ export async function getUsers(
   size = 5
 ): Promise<PageResponse<UserResponse>> {
   return apiRequest<PageResponse<UserResponse>>(
-    `/admin/users?page=${page}&size=${size}`,
+    `/api/admin/users?page=${page}&size=${size}`,
     { token }
   );
+}
+
+export async function adminChangeUserPassword(
+  token: string,
+  userId: number,
+  newPassword: string
+): Promise<void> {
+  return apiRequest<void>(`/api/admin/users/${userId}/change-password`, {
+    method: 'POST',
+    body: JSON.stringify({ newPassword }),
+    token,
+  });
 }
 
 /* Dashboard Supervision */
@@ -177,7 +205,7 @@ export async function getSupervisionDashboard(
 ): Promise<SupervisionDashboardResponse> {
   const params = startDate ? `?startDate=${startDate}` : '';
   return apiRequest<SupervisionDashboardResponse>(
-    `/admin/dashboard/supervision${params}`,
+    `/api/admin/dashboard/supervision${params}`,
     { token }
   );
 }
@@ -185,7 +213,7 @@ export async function getSupervisionDashboard(
 export async function getDashboardAlerts(
   token: string
 ): Promise<HealthRecordResponse[]> {
-  return apiRequest<HealthRecordResponse[]>('/admin/dashboard/alerts', {
+  return apiRequest<HealthRecordResponse[]>('/api/admin/dashboard/alerts', {
     token,
   });
 }
@@ -195,7 +223,7 @@ export async function approveHealthRecord(
   id: number
 ): Promise<HealthRecordResponse> {
   return apiRequest<HealthRecordResponse>(
-    `/admin/dashboard/health-records/${id}/approve`,
+    `/api/admin/dashboard/health-records/${id}/approve`,
     { method: 'POST', token }
   );
 }
@@ -205,21 +233,21 @@ export async function rejectHealthRecord(
   id: number
 ): Promise<HealthRecordResponse> {
   return apiRequest<HealthRecordResponse>(
-    `/admin/dashboard/health-records/${id}/reject`,
+    `/api/admin/dashboard/health-records/${id}/reject`,
     { method: 'POST', token }
   );
 }
 
 /* Profile (authenticated user) */
 export async function getProfile(token: string): Promise<UserResponse> {
-  return apiRequest<UserResponse>('/users/me', { token });
+  return apiRequest<UserResponse>('/api/users/me', { token });
 }
 
 export async function updateProfile(
   token: string,
   body: UpdateProfileRequest
 ): Promise<UserResponse> {
-  return apiRequest<UserResponse>('/users/me', {
+  return apiRequest<UserResponse>('/api/users/me', {
     method: 'PATCH',
     body: JSON.stringify(body),
     token,
@@ -230,7 +258,7 @@ export async function changePassword(
   token: string,
   body: ChangePasswordRequest
 ): Promise<void> {
-  return apiRequest<void>('/users/me/password', {
+  return apiRequest<void>('/api/users/me/password', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -242,7 +270,7 @@ export async function createMortality(
   token: string,
   body: CreateMortalityRequest
 ): Promise<MortalityResponse> {
-  return apiRequest<MortalityResponse>('/ouvrier/mortality', {
+  return apiRequest<MortalityResponse>('/api/ouvrier/mortality', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -258,7 +286,7 @@ export async function getMortalities(
   const params = new URLSearchParams({ page: String(page), size: String(size) });
   if (batchId) params.set('batchId', String(batchId));
   return apiRequest<PageResponse<MortalityResponse>>(
-    `/ouvrier/mortality?${params.toString()}`,
+    `/api/ouvrier/mortality?${params.toString()}`,
     { token }
   );
 }
@@ -268,7 +296,7 @@ export async function createFeeding(
   token: string,
   body: CreateFeedingRequest
 ): Promise<FeedingResponse> {
-  return apiRequest<FeedingResponse>('/ouvrier/feeding', {
+  return apiRequest<FeedingResponse>('/api/ouvrier/feeding', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -297,7 +325,7 @@ export async function getFeedings(
   });
   if (options?.batchId) params.set('batchId', String(options.batchId));
   return apiRequest<PageResponse<FeedingResponse>>(
-    `/ouvrier/feeding?${params.toString()}`,
+    `/api/ouvrier/feeding?${params.toString()}`,
     { token }
   );
 }
@@ -307,7 +335,7 @@ export async function createHealthRecord(
   token: string,
   body: CreateHealthRecordRequest
 ): Promise<HealthRecordResponse> {
-  return apiRequest<HealthRecordResponse>('/vet/health-records', {
+  return apiRequest<HealthRecordResponse>('/api/vet/health-records', {
     method: 'POST',
     body: JSON.stringify(body),
     token,
@@ -322,7 +350,7 @@ export async function getBatchCost(
 ): Promise<BatchCostBreakdownResponse> {
   const params = fixedCharges != null ? `?fixedCharges=${fixedCharges}` : '';
   return apiRequest<BatchCostBreakdownResponse>(
-    `/admin/batches/${batchId}/cost${params}`,
+    `/api/admin/batches/${batchId}/cost${params}`,
     { token }
   );
 }
