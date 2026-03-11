@@ -6,7 +6,7 @@ import { isAuthenticated, clearTokens, getToken } from '@/lib/jwt';
 import { getOuvrierBatchesFlat, createFeeding } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import type { BatchResponse } from '@/types/admin';
-import FeedingQuickModal from '@/components/dashboard/FeedingQuickModal';
+import FeedingQuickModal, { getSuggestedFeedType } from '@/components/dashboard/FeedingQuickModal';
 
 const FEED_TYPES = [
   { value: 'Pre-Starter', label: 'Pre-Demarrage', days: '0-7j' },
@@ -94,9 +94,9 @@ export default function OuvrierFeedingPage() {
         ) : (
           <div className="space-y-3">
             {batches.map((batch, i) => {
-              const days = Math.floor((Date.now() - new Date(batch.arrivalDate).getTime()) / (1000 * 60 * 60 * 24));
-              const suggestedType = days <= 7 ? 'Pre-Starter' : days <= 10 ? 'Starter' : days <= 24 ? 'Grower' : 'Finisher';
-              const ft = FEED_TYPES.find((f) => f.value === suggestedType)!;
+              const suggested = getSuggestedFeedType(batch.arrivalDate);
+              const days = suggested.ageInDays;
+              const ft = FEED_TYPES.find((f) => f.value === suggested.value)!;
               return (
                 <div
                   key={batch.id}
