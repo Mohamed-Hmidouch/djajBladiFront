@@ -24,9 +24,12 @@ interface FormErrors {
   global?: string;
 }
 
+const HIGH_MORTALITY_THRESHOLD = 10;
+
 export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showHighWarning, setShowHighWarning] = useState(false);
 
   const [form, setForm] = useState<FormState>({
     recordDate: new Date().toISOString().split('T')[0],
@@ -39,7 +42,13 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (showHighWarning) {
+          setShowHighWarning(false);
+        } else {
+          onClose();
+        }
+      }
     }
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -47,7 +56,7 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, [onClose, showHighWarning]);
 
   function validate(): boolean {
     const errs: FormErrors = {};
@@ -67,9 +76,7 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
     return Object.keys(errs).length === 0;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
+  async function doSubmit() {
     const token = getToken();
     if (!token) return;
     setSubmitting(true);
@@ -92,9 +99,21 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
           ? err.message
           : 'Erreur lors de l\'enregistrement';
       setErrors({ global: msg });
+      setShowHighWarning(false);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!validate()) return;
+    const count = parseInt(form.mortalityCount, 10);
+    if (count > HIGH_MORTALITY_THRESHOLD && !showHighWarning) {
+      setShowHighWarning(true);
+      return;
+    }
+    doSubmit();
   }
 
   function handleOverlayClick(e: React.MouseEvent) {
@@ -109,6 +128,7 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
     ) => {
       setForm((f) => ({ ...f, [field]: e.target.value }));
       setErrors((er) => ({ ...er, [field]: undefined, global: undefined }));
+      if (field === 'mortalityCount') setShowHighWarning(false);
     };
   }
 
@@ -193,6 +213,73 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="modal-body" noValidate>
+            {/* High Mortality Confirmation Screen */}
+            {showHighWarning && (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col items-center text-center">
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+                    style={{ background: 'linear-gradient(135deg, #ea580c, #dc2626)' }}
+                  >
+                    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-bold text-[var(--color-text-primary)]">Attention — Mortalite elevee</h3>
+                </div>
+
+                <div className="px-4 py-4 rounded-xl border-2 border-orange-300 bg-orange-50 text-sm text-orange-900">
+                  <p className="font-medium leading-relaxed">
+                    Tu as saisi <span className="font-bold text-red-700">{form.mortalityCount} morts</span>.
+                    {mortalityPct && (
+                      <> Cela represente <span className="font-bold text-red-700">{mortalityPct}%</span> de l&apos;effectif du lot.</>
+                    )}
+                  </p>
+                  <p className="mt-2 font-semibold">Est-ce bien correct ?</p>
+                </div>
+
+                {errors.global && (
+                  <div
+                    className="px-4 py-3 rounded-xl text-sm font-medium"
+                    style={{ background: 'var(--color-action-mortality-bg)', color: 'var(--color-action-mortality-text)', border: '1px solid var(--color-action-mortality-border)' }}
+                  >
+                    {errors.global}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => doSubmit()}
+                  disabled={submitting}
+                  className="w-full py-3 rounded-xl text-white text-sm font-bold transition-all"
+                  style={{ background: 'linear-gradient(135deg, #ea580c, #dc2626)' }}
+                >
+                  {submitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Enregistrement...
+                    </span>
+                  ) : (
+                    `Oui, confirmer ${form.mortalityCount} morts`
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowHighWarning(false)}
+                  disabled={submitting}
+                  className="w-full py-3 rounded-xl text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] transition-all"
+                >
+                  Non, corriger le chiffre
+                </button>
+              </div>
+            )}
+
+            {/* Main Form */}
+            {!showHighWarning && (
+            <>
             {errors.global && (
               <div
                 className="mb-4 px-4 py-3 rounded-xl text-sm font-medium"
@@ -269,8 +356,9 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
 
             {/* Live percentage indicator */}
             {mortalityPct !== null && (
+              <>
               <div
-                className="mb-4 px-4 py-2.5 rounded-xl flex items-center justify-between"
+                className="mb-2 px-4 py-2.5 rounded-xl flex items-center justify-between"
                 style={{
                   background:
                     parseFloat(mortalityPct) >= 5
@@ -297,6 +385,12 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
                   {parseFloat(mortalityPct) >= 5 && ' — Alerte'}
                 </span>
               </div>
+              {parseInt(form.mortalityCount, 10) > HIGH_MORTALITY_THRESHOLD && (
+                <div className="mb-4 px-3 py-1.5 rounded-lg bg-orange-50 border border-orange-200 text-[10px] font-semibold text-orange-700">
+                  Chiffre eleve — une confirmation sera demandee
+                </div>
+              )}
+              </>
             )}
 
             {/* Notes */}
@@ -341,6 +435,8 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
                 Annuler
               </button>
             </div>
+            </>
+            )}
           </form>
         )}
       </div>

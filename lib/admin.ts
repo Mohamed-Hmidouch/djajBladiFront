@@ -279,16 +279,55 @@ export async function createMortality(
 
 export async function getMortalities(
   token: string,
+  options?: { startDate?: string; endDate?: string; batchId?: number },
   page = 0,
-  size = 5,
-  batchId?: number
+  size = 5
 ): Promise<PageResponse<MortalityResponse>> {
-  const params = new URLSearchParams({ page: String(page), size: String(size) });
-  if (batchId) params.set('batchId', String(batchId));
+  const endDate = options?.endDate || new Date().toISOString().split('T')[0];
+  const start =
+    options?.startDate ||
+    (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 90);
+      return d.toISOString().split('T')[0];
+    })();
+  const params = new URLSearchParams({
+    startDate: start,
+    endDate,
+    page: String(page),
+    size: String(size),
+  });
+  if (options?.batchId) params.set('batchId', String(options.batchId));
   return apiRequest<PageResponse<MortalityResponse>>(
     `/api/ouvrier/mortality?${params.toString()}`,
     { token }
   );
+}
+
+/** Fetch today's feedings + mortalities for daily progress tracking */
+export async function getTodayProgress(
+  token: string
+): Promise<{ feedings: FeedingResponse[]; mortalities: MortalityResponse[] }> {
+  const today = new Date().toISOString().split('T')[0];
+  const [feedPage, mortPage] = await Promise.all([
+    getFeedings(token, { startDate: today, endDate: today }, 0, 1000),
+    getMortalities(token, { startDate: today, endDate: today }, 0, 1000),
+  ]);
+  return { feedings: feedPage.content, mortalities: mortPage.content };
+}
+
+/** Fetch mortalities over the last 365 days — used to compute cumulative loss per batch.
+ *  The backend enforces a 366-day max range, so we stay safely within that limit. */
+export async function getAllMortalitiesFlat(
+  token: string
+): Promise<MortalityResponse[]> {
+  const today = new Date();
+  const endDate = today.toISOString().split('T')[0];
+  const from = new Date(today);
+  from.setDate(from.getDate() - 364);
+  const startDate = from.toISOString().split('T')[0];
+  return getMortalities(token, { startDate, endDate }, 0, 5000)
+    .then((r) => r.content);
 }
 
 /* Feeding (Ouvrier / Admin) */
