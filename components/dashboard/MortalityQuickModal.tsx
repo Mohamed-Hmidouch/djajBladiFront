@@ -68,8 +68,8 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
       errs.recordDate = `La date doit etre apres l'arrivee du lot (${batch.arrivalDate})`;
 
     const count = parseInt(form.mortalityCount, 10);
-    if (!form.mortalityCount || isNaN(count) || count < 1)
-      errs.mortalityCount = 'Saisissez un nombre valide (minimum 1)';
+    if (form.mortalityCount === '' || isNaN(count) || count < 0)
+      errs.mortalityCount = 'Saisissez un nombre valide (minimum 0)';
     if (count > batch.chickenCount)
       errs.mortalityCount = `Depasse le nombre de poussins du lot (${batch.chickenCount.toLocaleString()})`;
 
@@ -115,6 +115,38 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
       return;
     }
     doSubmit();
+  }
+
+  async function handleZeroMortality() {
+    // Quick action: set date to today, count to 0, and submit directly
+    const today = new Date().toISOString().split('T')[0];
+    setForm((f) => ({ ...f, recordDate: today, mortalityCount: '0' }));
+    
+    // We bypass standard form validation and submit directly
+    // to make the UX as fast as possible for the worker
+    const token = getToken();
+    if (!token) return;
+    setSubmitting(true);
+    setErrors({});
+    try {
+      await createMortality(token, {
+        batchId: batch.id,
+        recordDate: today,
+        mortalityCount: 0,
+        notes: "Aucune mortalite signalee",
+      });
+      setSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1400);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Erreur lors de l\'enregistrement';
+      setErrors({ global: msg });
+      setShowHighWarning(false);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleOverlayClick(e: React.MouseEvent) {
@@ -340,10 +372,10 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
                 <label className="form-label">Nombre de morts</label>
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   max={batch.chickenCount}
                   step="1"
-                  placeholder="Ex: 12"
+                  placeholder="Ex: 0"
                   className={`form-input form-input-mortality ${errors.mortalityCount ? 'border-[var(--color-action-mortality)]' : ''}`}
                   value={form.mortalityCount}
                   onChange={set('mortalityCount')}
@@ -427,9 +459,28 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
                   'Confirmer le signalement'
                 )}
               </button>
+              
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-[var(--color-border)]"></div>
+                <span className="flex-shrink-0 mx-4 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">ou</span>
+                <div className="flex-grow border-t border-[var(--color-border)]"></div>
+              </div>
+
               <button
                 type="button"
-                className="btn-modal-cancel"
+                className="flex items-center justify-center gap-2 py-3 rounded-xl text-[var(--color-text-primary)] text-sm font-bold border-2 border-dashed border-emerald-300 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 active:bg-emerald-200 transition-all disabled:opacity-50"
+                onClick={handleZeroMortality}
+                disabled={submitting}
+              >
+                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                </span>
+                Tout va bien, 0 mortalite aujourd&apos;hui
+              </button>
+
+              <button
+                type="button"
+                className="btn-modal-cancel mt-2"
                 onClick={onClose}
                 disabled={submitting}
               >
