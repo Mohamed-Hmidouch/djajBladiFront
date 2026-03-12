@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createMortality } from '@/lib/admin';
 import { getToken } from '@/lib/jwt';
 import { ApiError } from '@/lib/api';
@@ -141,7 +142,7 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
       ? ((parseInt(form.mortalityCount, 10) / batch.chickenCount) * 100).toFixed(2)
       : null;
 
-  return (
+  return createPortal(
     <div
       className="modal-overlay"
       ref={overlayRef}
@@ -440,6 +441,7 @@ export default function MortalityQuickModal({ batch, onClose, onSuccess }: Props
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

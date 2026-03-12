@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { createFeeding, getOuvrierStockFlat } from '@/lib/admin';
 import { getToken } from '@/lib/jwt';
 import { ApiError } from '@/lib/api';
@@ -65,16 +66,6 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
 
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  // --- Filter stock items by the selected feedType keywords ---
-  const filteredStock = useMemo(() => {
-    const ft = FEED_TYPES.find((t) => t.value === form.feedType);
-    if (!ft) return allFeedStock;
-    return allFeedStock.filter((s) => {
-      const n = (s.name || '').toLowerCase();
-      return ft.keywords.some((kw) => n.includes(kw));
-    });
-  }, [allFeedStock, form.feedType]);
-
   // --- The currently selected stock item (for quantity check) ---
   const selectedStock = useMemo(
     () => allFeedStock.find((s) => String(s.id) === form.stockItemId) ?? null,
@@ -101,19 +92,19 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
       .finally(() => setStockLoading(false));
   }, []);
 
-  // Auto-select first filtered stock item when feedType or stock changes
+  // Auto-select first stock item when stock loads
   useEffect(() => {
-    if (filteredStock.length > 0) {
-      const currentStillAvailable = filteredStock.some(
+    if (allFeedStock.length > 0) {
+      const currentStillAvailable = allFeedStock.some(
         (s) => String(s.id) === form.stockItemId
       );
       if (!currentStillAvailable) {
-        setForm((f) => ({ ...f, stockItemId: String(filteredStock[0].id) }));
+        setForm((f) => ({ ...f, stockItemId: String(allFeedStock[0].id) }));
       }
     } else {
       setForm((f) => ({ ...f, stockItemId: '' }));
     }
-  }, [filteredStock, form.stockItemId]);
+  }, [allFeedStock, form.stockItemId]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -191,7 +182,7 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
 
   const daysSince = suggested.ageInDays;
 
-  return (
+  return createPortal(
     <div
       className="modal-overlay"
       ref={overlayRef}
@@ -283,7 +274,7 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
               </label>
               {stockLoading ? (
                 <div className="skeleton h-[44px] w-full" />
-              ) : filteredStock.length === 0 ? (
+              ) : allFeedStock.length === 0 ? (
                 <div
                   className="px-4 py-3 rounded-xl text-sm"
                   style={{
@@ -292,9 +283,7 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
                     border: '1px solid var(--color-action-feed-border)',
                   }}
                 >
-                  {allFeedStock.length === 0
-                    ? "Aucun article de type Aliment en stock. Approvisionnez d'abord."
-                    : `Aucun stock disponible pour le type "${FEED_TYPES.find((t) => t.value === form.feedType)?.label ?? form.feedType}". Verifiez le nom des articles.`}
+                  Aucun article de type Aliment en stock. Approvisionnez d&apos;abord.
                 </div>
               ) : (
                 <div className="relative">
@@ -304,7 +293,7 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
                     onChange={set('stockItemId')}
                     disabled={submitting}
                   >
-                    {filteredStock.map((s) => (
+                    {allFeedStock.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name || `Aliment #${s.id}`} (Reste : {s.quantity} {s.unit})
                       </option>
@@ -414,7 +403,7 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
               <button
                 type="submit"
                 className="btn-modal-submit-feed"
-                disabled={submitting || stockLoading || filteredStock.length === 0 || isStockInsufficient}
+                disabled={submitting || stockLoading || allFeedStock.length === 0 || isStockInsufficient}
               >
                 {submitting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -440,6 +429,7 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
