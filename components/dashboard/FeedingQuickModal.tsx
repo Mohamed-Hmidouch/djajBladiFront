@@ -6,6 +6,7 @@ import { createFeeding, getOuvrierStockFlat } from '@/lib/admin';
 import { getToken } from '@/lib/jwt';
 import { ApiError } from '@/lib/api';
 import type { BatchResponse, StockItemResponse } from '@/types/admin';
+import { StockType } from '@/types/admin';
 
 const FEED_TYPES = [
   { value: 'Pre-Starter', label: 'Pre-Demarrage', days: '0-7j',  keywords: ['pre-demarrage', 'pre-starter', 'prestarter'] },
@@ -84,7 +85,7 @@ export default function FeedingQuickModal({ batch, onClose, onSuccess }: Props) 
     getOuvrierStockFlat(token)
       .then((items) => {
         const feedStock = items.filter(
-          (s) => s.type === 'Feed' && s.quantity > 0
+          (s) => s.type === StockType.FEED && s.quantity > 0
         );
         setAllFeedStock(feedStock);
       })

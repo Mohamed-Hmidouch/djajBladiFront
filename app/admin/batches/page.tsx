@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getToken } from '@/lib/jwt';
-import { getBatches, createBatch, getAllBatchesFlat, getBuildings, validateBatchCapacity } from '@/lib/admin';
+import { getBatches, createBatch, getAllBatchesFlat, getBuildings, validateBatchCapacity, getOuvrierUsers, updateBatch } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
-import type { BatchResponse, CreateBatchRequest, BuildingResponse, BatchStatus } from '@/types/admin';
+import type { BatchResponse, CreateBatchRequest, BuildingResponse, BatchStatus, UpdateBatchRequest } from '@/types/admin';
+import type { UserResponse } from '@/types/auth';
 import {
   AdminPageShell,
   AdminPanel,
@@ -18,6 +19,11 @@ const statusConfig: Record<BatchStatus, { color: string; label: string; textColo
   Active: { color: 'bg-emerald-500', label: 'Actif', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
   Completed: { color: 'bg-amber-500', label: 'Termine', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
   Cancelled: { color: 'bg-gray-500', label: 'Annule', textColor: 'text-gray-700', bgColor: 'bg-gray-50' },
+  ACTIVE: { color: 'bg-emerald-500', label: 'Actif', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+  COMPLETED: { color: 'bg-amber-500', label: 'Termine', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
+  CANCELLED: { color: 'bg-gray-500', label: 'Annule', textColor: 'text-gray-700', bgColor: 'bg-gray-50' },
+  SOLD: { color: 'bg-blue-500', label: 'Vendu', textColor: 'text-blue-700', bgColor: 'bg-blue-50' },
+  READY_FOR_SALE: { color: 'bg-violet-500', label: 'Pret vente', textColor: 'text-violet-700', bgColor: 'bg-violet-50' },
 };
 
 const initialForm: CreateBatchRequest = {
@@ -27,6 +33,7 @@ const initialForm: CreateBatchRequest = {
   arrivalDate: '',
   purchasePrice: 0,
   buildingId: undefined,
+  assignedToId: undefined,
   notes: '',
 };
 
@@ -35,6 +42,7 @@ const PAGE_SIZE = 5;
 export default function AdminBatchesPage() {
   const [batches, setBatches] = useState<BatchResponse[]>([]);
   const [buildings, setBuildings] = useState<BuildingResponse[]>([]);
+  const [ouvriers, setOuvriers] = useState<UserResponse[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -49,20 +57,63 @@ export default function AdminBatchesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [editingBatch, setEditingBatch] = useState<BatchResponse | null>(null);
+  const [editForm, setEditForm] = useState<UpdateBatchRequest | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  function handleEditClick(e: React.MouseEvent, batch: BatchResponse) {
+    e.stopPropagation();
+    setEditingBatch(batch);
+    setEditForm({
+      batchNumber: batch.batchNumber,
+      strain: batch.strain,
+      chickenCount: batch.chickenCount,
+      arrivalDate: batch.arrivalDate,
+      purchasePrice: batch.purchasePrice,
+      status: batch.status,
+      buildingId: batch.buildingId || undefined,
+      notes: batch.notes || '',
+      assignedToId: batch.assignedToId || undefined,
+    });
+    setEditError(null);
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm || !editingBatch) return;
+    const token = getToken();
+    if (!token) return;
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      await updateBatch(token, editingBatch.id, editForm);
+      setEditingBatch(null);
+      setEditForm(null);
+      await fetchData(page);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Erreur lors de la modification');
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
   const fetchData = useCallback(async (targetPage: number) => {
     const token = getToken();
     if (!token) return;
     try {
       setError(null);
-      const [batchesPage, buildingsPage] = await Promise.all([
+      const [batchesPage, buildingsPage, ouvriersList] = await Promise.all([
         getBatches(token, targetPage, PAGE_SIZE),
         getBuildings(token, 0, 1000),
+        getOuvrierUsers(token),
       ]);
       setBatches(batchesPage.content);
       setTotalPages(batchesPage.totalPages);
       setTotalElements(batchesPage.totalElements);
       setPage(batchesPage.page);
       setBuildings(buildingsPage.content);
+      setOuvriers(ouvriersList);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur lors du chargement des lots');
     } finally {
@@ -105,6 +156,7 @@ export default function AdminBatchesPage() {
         arrivalDate: form.arrivalDate,
         purchasePrice: form.purchasePrice,
         buildingId: form.buildingId || undefined,
+        assignedToId: form.assignedToId,
         notes: form.notes || undefined,
       });
       setForm(initialForm);
@@ -227,6 +279,15 @@ export default function AdminBatchesPage() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Ouvrier responsable</label>
+                <select required value={form.assignedToId || ''} onChange={(e) => setForm((f) => ({ ...f, assignedToId: e.target.value ? parseInt(e.target.value) : undefined }))} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200">
+                  <option value="">Selectionner un ouvrier</option>
+                  {ouvriers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.fullName} ({u.email})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-2">Notes</label>
                 <textarea value={form.notes || ''} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Notes optionnelles..." rows={2} className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] text-[var(--color-text-body)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 resize-none" />
               </div>
@@ -284,7 +345,7 @@ export default function AdminBatchesPage() {
                             </span>
                           </div>
                           <p className="text-sm text-[var(--color-text-muted)]">{batch.strain} - {batch.chickenCount.toLocaleString()} poussins</p>
-                          <p className="text-xs text-[var(--color-text-muted)] mt-1">{batch.buildingName || 'Sans batiment'} - Jour {age}</p>
+                          <p className="text-xs text-[var(--color-text-muted)] mt-1">{batch.buildingName || 'Sans batiment'} - Ouvrier: {batch.assignedToName || 'Non assigne'} - Jour {age}</p>
                         </div>
                         <div className="hidden sm:flex items-center gap-4 flex-shrink-0">
                           <div className="text-center">
@@ -296,7 +357,7 @@ export default function AdminBatchesPage() {
                           <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </div>
                       </div>
-                      <div className={`overflow-hidden transition-all duration-300 ease-out ${expandedBatch === batch.id ? 'max-h-60' : 'max-h-0'}`}>
+                      <div className={`overflow-hidden transition-all duration-300 ease-out ${expandedBatch === batch.id ? 'max-h-[500px]' : 'max-h-0'}`}>
                         <div className="p-4 pt-0 bg-[var(--color-surface-1)] border-t border-[var(--color-border)]">
                           <div className="mb-4">
                             <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Progression de croissance</p>
@@ -330,6 +391,15 @@ export default function AdminBatchesPage() {
                           {batch.notes && (
                             <p className="mt-3 text-sm text-[var(--color-text-muted)] italic">Note: {batch.notes}</p>
                           )}
+                          <div className="mt-4 flex justify-end">
+                            <button
+                              onClick={(e) => handleEditClick(e, batch)}
+                              className="flex items-center gap-2 px-4 py-2 bg-[var(--color-surface-2)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors rounded-lg text-sm font-medium border border-[var(--color-border)]"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              Modifier
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </article>
@@ -349,6 +419,187 @@ export default function AdminBatchesPage() {
           </AdminPanel>
         </AdminBentoList>
       </AdminBentoGrid>
+      {/* Edit Modal */}
+      {editingBatch && editForm && (
+        <div 
+          className="modal-overlay" 
+          role="dialog" 
+          aria-modal="true" 
+          aria-labelledby="edit-batch-modal-title"
+          onClick={() => setEditingBatch(null)}
+        >
+          <div 
+            className="modal-panel"
+            onClick={(e) => e.stopPropagation()} // prevent closing when clicking inside
+          >
+            {/* Header with emerald gradient to match batch theme */}
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-6 xl:p-8 text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </div>
+                    <span 
+                      className="text-xs font-bold uppercase tracking-widest text-white/70"
+                      style={{ letterSpacing: '0.12em' }}
+                    >
+                      Modification
+                    </span>
+                  </div>
+                  <h2 
+                    id="edit-batch-modal-title" 
+                    className="text-xl font-bold text-white"
+                  >
+                    Mettre a jour le Lot
+                  </h2>
+                </div>
+                <button 
+                  onClick={() => setEditingBatch(null)} 
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center flex-shrink-0 mt-1"
+                  aria-label="Fermer"
+                >
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="modal-body pb-8">
+              {editError && (
+                <div 
+                  className="mb-4 px-4 py-3 rounded-xl text-sm font-medium"
+                  style={{ 
+                    background: 'var(--color-action-mortality-bg)', 
+                    color: 'var(--color-action-mortality-text)',
+                    border: '1px solid var(--color-action-mortality-border)'
+                  }}
+                >
+                  {editError}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-field">
+                  <label className="form-label">Numero de lot</label>
+                  <input type="text" required value={editForm.batchNumber} onChange={(e) => setEditForm({ ...editForm, batchNumber: e.target.value })} className="form-input focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]" />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Statut</label>
+                  <div className="relative">
+                    <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value as BatchStatus })} className="form-select focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]">
+                      <option value="Active">Actif</option>
+                      <option value="Completed">Termine</option>
+                      <option value="Cancelled">Annule</option>
+                    </select>
+                    <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div className="form-field">
+                  <label className="form-label">Souche</label>
+                  <div className="relative">
+                    <select value={editForm.strain} onChange={(e) => setEditForm({ ...editForm, strain: e.target.value })} className="form-select focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]">
+                      <option>Cobb 500</option>
+                      <option>Ross 308</option>
+                      <option>Hubbard Classic</option>
+                    </select>
+                    <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Nombre de poussins</label>
+                  <input type="number" required min={1} value={editForm.chickenCount} onChange={(e) => setEditForm({ ...editForm, chickenCount: parseInt(e.target.value) || 0 })} className="form-input focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]" />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div className="form-field">
+                  <label className="form-label">Date d&apos;arrivee</label>
+                  <input type="date" required value={editForm.arrivalDate.split('T')[0]} onChange={(e) => setEditForm({ ...editForm, arrivalDate: e.target.value })} className="form-input focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]" />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Prix d&apos;achat</label>
+                  <input type="number" required min={0} value={editForm.purchasePrice} onChange={(e) => setEditForm({ ...editForm, purchasePrice: parseFloat(e.target.value) || 0 })} className="form-input focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]" />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div className="form-field">
+                  <label className="form-label">Batiment</label>
+                  <div className="relative">
+                    <select value={editForm.buildingId || ''} onChange={(e) => setEditForm({ ...editForm, buildingId: e.target.value ? parseInt(e.target.value) : undefined })} className="form-select focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]">
+                      <option value="">Selectionner un batiment</option>
+                      {buildings.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name} ({b.maxCapacity} places)</option>
+                      ))}
+                    </select>
+                    <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Ouvrier responsable</label>
+                  <div className="relative">
+                    <select required value={editForm.assignedToId || ''} onChange={(e) => setEditForm({ ...editForm, assignedToId: e.target.value ? parseInt(e.target.value) : undefined })} className="form-select focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)]">
+                      <option value="">Selectionner un ouvrier</option>
+                      {ouvriers.map((u) => (
+                        <option key={u.id} value={u.id}>{u.fullName} ({u.email})</option>
+                      ))}
+                    </select>
+                    <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="form-field mt-2">
+                <label className="form-label">Notes</label>
+                <textarea value={editForm.notes || ''} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} className="form-input focus:border-emerald-500 focus:ring-emerald-500/20 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.1)] resize-none" />
+              </div>
+              
+              <div className="flex flex-col gap-3 mt-8">
+                <button 
+                  type="submit" 
+                  disabled={editSubmitting} 
+                  className="w-full py-3.5 px-4 rounded-xl border border-transparent text-white font-bold tracking-wide transition-all duration-300 transform shadow-lg hover:-translate-y-0.5"
+                  style={{ background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)' }}
+                >
+                  {editSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Enregistrement...
+                    </span>
+                  ) : (
+                    'Enregistrer les modifications'
+                  )}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setEditingBatch(null)} 
+                  className="btn-modal-cancel"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AdminPageShell>
   );
 }

@@ -21,8 +21,8 @@ import {
   Pagination,
 } from '@/components/dashboard';
 
-const typeConfig = {
-  Feed: {
+const typeConfig: Record<string, { color: string; gradient: string; bgLight: string; textColor: string; borderColor: string; label: string; pluralLabel: string; icon: string }> = {
+  FEED: {
     color: 'amber',
     gradient: 'from-amber-500 to-amber-600',
     bgLight: 'bg-amber-50',
@@ -32,7 +32,7 @@ const typeConfig = {
     pluralLabel: 'Aliments',
     icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
   },
-  Vaccine: {
+  VACCINE: {
     color: 'rose',
     gradient: 'from-rose-500 to-rose-600',
     bgLight: 'bg-rose-50',
@@ -42,15 +42,25 @@ const typeConfig = {
     pluralLabel: 'Vaccins',
     icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
   },
-  Vitamin: {
+  MEDICATION: {
     color: 'emerald',
     gradient: 'from-emerald-500 to-emerald-600',
     bgLight: 'bg-emerald-50',
     textColor: 'text-emerald-700',
     borderColor: 'border-emerald-200',
-    label: 'Vitamine',
-    pluralLabel: 'Vitamines',
+    label: 'Medicament',
+    pluralLabel: 'Medicaments',
     icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+  },
+  EQUIPMENT: {
+    color: 'slate',
+    gradient: 'from-slate-500 to-slate-600',
+    bgLight: 'bg-slate-50',
+    textColor: 'text-slate-700',
+    borderColor: 'border-slate-200',
+    label: 'Equipement',
+    pluralLabel: 'Equipements',
+    icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
   },
 };
 
@@ -109,7 +119,7 @@ function DonutChart({ data, size = 160 }: { data: { label: string; value: number
 }
 
 const initialForm: CreateStockRequest = {
-  type: StockType.Feed,
+  type: StockType.FEED,
   name: '',
   quantity: 0,
   unit: 'sac',
@@ -199,12 +209,12 @@ export default function AdminStockPage() {
   const [filterBatchId, setFilterBatchId] = useState<number | null>(null);
 
   // Derived from flat data (for forms + charts)
-  const feedStockItems = useMemo(() => allStockFlat.filter((s) => s.type === 'Feed'), [allStockFlat]);
+  const feedStockItems = useMemo(() => allStockFlat.filter((s) => s.type === StockType.FEED), [allStockFlat]);
   const selectedStock = useMemo(
     () => feedStockItems.find((s) => s.id === feedingForm.stockItemId) ?? null,
     [feedStockItems, feedingForm.stockItemId]
   );
-  const activeBatches = useMemo(() => allBatchesFlat.filter((b) => b.status === 'Active'), [allBatchesFlat]);
+  const activeBatches = useMemo(() => allBatchesFlat.filter((b) => b.status === 'Active' || b.status === 'ACTIVE'), [allBatchesFlat]);
 
   const fetchStockPage = useCallback(async (page: number) => {
     const token = getToken();
@@ -323,15 +333,17 @@ export default function AdminStockPage() {
   }
 
   // Chart data from flat stock
-  const feedCount = allStockFlat.filter((s) => s.type === 'Feed').reduce((sum, s) => sum + s.quantity, 0);
-  const vaccineCount = allStockFlat.filter((s) => s.type === 'Vaccine').reduce((sum, s) => sum + s.quantity, 0);
-  const vitaminCount = allStockFlat.filter((s) => s.type === 'Vitamin').reduce((sum, s) => sum + s.quantity, 0);
+  const feedCount = allStockFlat.filter((s) => s.type === 'FEED').reduce((sum, s) => sum + s.quantity, 0);
+  const vaccineCount = allStockFlat.filter((s) => s.type === 'VACCINE').reduce((sum, s) => sum + s.quantity, 0);
+  const medicationCount = allStockFlat.filter((s) => s.type === 'MEDICATION').reduce((sum, s) => sum + s.quantity, 0);
+  const equipmentCount = allStockFlat.filter((s) => s.type === 'EQUIPMENT').reduce((sum, s) => sum + s.quantity, 0);
 
   const chartData = [
     { label: 'Aliments', value: feedCount, color: '#f59e0b' },
     { label: 'Vaccins', value: vaccineCount, color: '#f43f5e' },
-    { label: 'Vitamines', value: vitaminCount, color: '#10b981' },
-  ];
+    { label: 'Medicaments', value: medicationCount, color: '#10b981' },
+    { label: 'Equipements', value: equipmentCount, color: '#64748b' },
+  ].filter((d) => d.value > 0);
 
   const filteredStock = stock.filter((item) => {
     const matchesType = !selectedType || item.type === selectedType;
@@ -405,10 +417,11 @@ export default function AdminStockPage() {
 
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
           {([
-            { type: 'Feed' as StockType, count: feedCount, unit: 'unites', extra: totalFeedToday > 0 ? `${totalFeedToday.toFixed(0)} kg distribue auj.` : undefined },
-            { type: 'Vaccine' as StockType, count: vaccineCount, unit: 'unites' },
-            { type: 'Vitamin' as StockType, count: vitaminCount, unit: 'unites' },
-          ]).map((cat, index) => {
+            { type: 'FEED' as StockType, count: feedCount, unit: 'unites', extra: totalFeedToday > 0 ? `${totalFeedToday.toFixed(0)} kg distribue auj.` : undefined },
+            { type: 'VACCINE' as StockType, count: vaccineCount, unit: 'unites' },
+            { type: 'MEDICATION' as StockType, count: medicationCount, unit: 'unites' },
+            { type: 'EQUIPMENT' as StockType, count: equipmentCount, unit: 'unites' },
+          ]).filter((cat) => cat.count > 0 || cat.type === 'FEED' || cat.type === 'VACCINE').map((cat, index) => {
             const cfg = typeConfig[cat.type];
             return (
               <div
@@ -461,8 +474,8 @@ export default function AdminStockPage() {
                 )}
                 <div>
                   <label className="block text-sm font-semibold text-[var(--color-text-primary)] mb-3">Type d&apos;article</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {([StockType.Feed, StockType.Vaccine, StockType.Vitamin]).map((type) => {
+                  <div className="grid grid-cols-2 gap-2">
+                    {([StockType.FEED, StockType.VACCINE, StockType.MEDICATION, StockType.EQUIPMENT]).map((type) => {
                       const cfg = typeConfig[type];
                       return (
                         <button key={type} type="button" onClick={() => setForm((f) => ({ ...f, type }))} className={`p-3 rounded-xl border-2 transition-all duration-200 ${cfg.bgLight} ${cfg.borderColor} hover:shadow-md active:scale-[0.98] ${form.type === type ? 'ring-2 ring-offset-1 ring-amber-400 shadow-md' : ''}`}>
@@ -517,10 +530,11 @@ export default function AdminStockPage() {
                 </div>
                 <div className="flex gap-1 p-1 bg-[var(--color-surface-2)] rounded-lg">
                   {[
-                    { key: null, label: 'Tous' },
-                    { key: 'Feed', label: 'Aliments' },
-                    { key: 'Vaccine', label: 'Vaccins' },
-                    { key: 'Vitamin', label: 'Vitamines' },
+                  { key: null, label: 'Tous' },
+                    { key: 'FEED', label: 'Aliments' },
+                    { key: 'VACCINE', label: 'Vaccins' },
+                    { key: 'MEDICATION', label: 'Medicaments' },
+                    { key: 'EQUIPMENT', label: 'Equipements' },
                   ].map((tab) => (
                     <button key={tab.key || 'all'} onClick={() => setSelectedType(tab.key)} className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${selectedType === tab.key ? 'bg-white shadow-sm text-amber-600' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-body)]'}`}>
                       {tab.label}

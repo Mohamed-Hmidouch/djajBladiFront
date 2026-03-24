@@ -39,6 +39,7 @@ export function DashboardNav() {
             <Link href="/admin/batches" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Lots</Link>
             <Link href="/admin/stock" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Stock</Link>
             <Link href="/admin/finances" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Finances</Link>
+            <Link href="/admin/vaccination-protocols" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Protocoles Vaccin</Link>
           </>
         )}
 
@@ -46,6 +47,7 @@ export function DashboardNav() {
           <>
             <Link href="/veterinaire" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Dashboard</Link>
             <Link href="/veterinaire/health" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Dossiers Sante</Link>
+            <Link href="/veterinaire/vaccination-alerts" className="text-[var(--color-text-body)] hover:text-[var(--color-primary)] transition-colors font-medium">Alertes Vaccination</Link>
           </>
         )}
 

@@ -29,13 +29,17 @@ export interface CreateBuildingRequest {
 }
 
 /* Batches */
-export type BatchStatus = 'Active' | 'Completed' | 'Cancelled';
+export type BatchStatus =
+  | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'SOLD' | 'READY_FOR_SALE'
+  /* legacy values still present in some seed rows */
+  | 'Active' | 'Completed' | 'Cancelled';
 
 export interface BatchResponse {
   id: number;
   batchNumber: string;
   strain: string;
   chickenCount: number;
+  currentCount?: number;
   arrivalDate: string;
   purchasePrice: number;
   buildingId: number | null;
@@ -45,6 +49,8 @@ export interface BatchResponse {
   createdById: number;
   createdAt: string;
   updatedAt: string;
+  assignedToId?: number;
+  assignedToName?: string;
 }
 
 export interface CreateBatchRequest {
@@ -55,13 +61,27 @@ export interface CreateBatchRequest {
   purchasePrice: number;
   buildingId?: number;
   notes?: string;
+  assignedToId?: number;
+}
+
+export interface UpdateBatchRequest {
+  batchNumber: string;
+  strain: string;
+  chickenCount: number;
+  arrivalDate: string;
+  purchasePrice: number;
+  status: BatchStatus;
+  buildingId?: number;
+  notes?: string;
+  assignedToId?: number;
 }
 
 /* Stock */
 export enum StockType {
-  Feed = 'Feed',
-  Vaccine = 'Vaccine',
-  Vitamin = 'Vitamin',
+  FEED = 'FEED',
+  VACCINE = 'VACCINE',
+  MEDICATION = 'MEDICATION',
+  EQUIPMENT = 'EQUIPMENT',
 }
 
 export interface StockItemResponse {
@@ -70,6 +90,7 @@ export interface StockItemResponse {
   name: string | null;
   quantity: number;
   unit: string;
+  unitPrice: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +132,8 @@ export interface CreateMortalityRequest {
   notes?: string;
 }
 
+export type MortalitySource = 'WORKER_REPORT' | 'VETERINARIAN_EXAMINATION';
+
 export interface MortalityResponse {
   id: number;
   batchId: number;
@@ -122,6 +145,9 @@ export interface MortalityResponse {
   recordedByName: string;
   createdAt: string;
   updatedAt: string;
+  /* V19 source attribution */
+  source: MortalitySource | null;
+  healthRecordId: number | null;
 }
 
 /* Feeding */
@@ -151,7 +177,7 @@ export interface FeedingResponse {
 }
 
 /* Health Records */
-export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected';
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface CreateHealthRecordRequest {
   batchId: number;
@@ -163,6 +189,11 @@ export interface CreateHealthRecordRequest {
   treatmentCost?: number;
   isDiseaseReported?: boolean;
   notes?: string;
+  /* Sanitary & Security Shield fields (V18) */
+  stockItemId?: number;
+  quantityUsed?: number;
+  withdrawalDays?: number;
+  isVaccination?: boolean;
 }
 
 export interface HealthRecordResponse {
@@ -185,6 +216,14 @@ export interface HealthRecordResponse {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  /* Sanitary & Security Shield fields (V18) */
+  withdrawalDays: number | null;
+  isVaccination: boolean;
+  stockItemId: number | null;
+  stockItemName: string | null;
+  quantityUsed: number | null;
+  withdrawalExpirationDate: string | null;
+  hasActiveWithdrawalPeriod: boolean;
 }
 
 /* Dashboard Supervision */
@@ -272,4 +311,56 @@ export interface BatchCostBreakdownResponse {
   estimatedProfitDH: number;
   profitMarginPct: number | null;
   feedLines: FeedLineItem[];
+}
+
+/* Vaccination Protocols (V22) */
+export interface VaccinationProtocolResponse {
+  id: number;
+  strain: string;
+  vaccineName: string;
+  dayOfLife: number;
+  notes: string | null;
+  createdById: number;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateVaccinationProtocolRequest {
+  strain: string;
+  vaccineName: string;
+  dayOfLife: number;
+  notes?: string;
+}
+
+export interface VaccinationAlertResponse {
+  batchId: number;
+  batchNumber: string;
+  strain: string;
+  protocolId: number;
+  vaccineName: string;
+  dueDate: string;
+  daysOverdue: number | null;
+  isOverdue: boolean;
+}
+
+export interface VaccinationScheduleResponse {
+  protocolId: number;
+  vaccineName: string;
+  dayOfLife: number;
+  dueDate: string;
+  isCompleted: boolean;
+  completedHealthRecordId: number | null;
+  completedDate: string | null;
+}
+
+export interface BatchVaccinationSchedule {
+  batchId: number;
+  batchNumber: string;
+  schedule: VaccinationScheduleResponse[];
+}
+
+/* Batch status patch */
+export interface PatchBatchStatusRequest {
+  status: BatchStatus;
 }

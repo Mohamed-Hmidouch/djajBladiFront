@@ -7,6 +7,7 @@ import { getCurrentUser, isAuthenticated, clearTokens, getToken } from '@/lib/jw
 import { getOuvrierBatchesFlat, getOuvrierStockFlat, getTodayProgress, getAllMortalitiesFlat } from '@/lib/admin';
 import { ApiError } from '@/lib/api';
 import type { BatchResponse, StockItemResponse, FeedingResponse, MortalityResponse } from '@/types/admin';
+import { StockType } from '@/types/admin';
 import FeedingQuickModal, { getSuggestedFeedType } from '@/components/dashboard/FeedingQuickModal';
 import MortalityQuickModal from '@/components/dashboard/MortalityQuickModal';
 
@@ -84,7 +85,7 @@ export default function OuvrierDashboardPage() {
   }, [router, fetchData]);
 
   const greeting = currentTime.getHours() < 12 ? 'Bonjour' : currentTime.getHours() < 18 ? 'Bon apres-midi' : 'Bonsoir';
-  const feedStock = stock.filter((s) => s.type === 'Feed');
+  const feedStock = stock.filter((s) => s.type === StockType.FEED);
   const totalFeedKg = feedStock.reduce((sum, s) => sum + s.quantity, 0);
   const completedCount = activeBatches.filter(
     (b) => getDayStatus(b.id, todayFeedings, todayMortalities) === 'done'

@@ -21,6 +21,12 @@ import type {
   CreateFeedingRequest,
   CreateHealthRecordRequest,
   BatchCostBreakdownResponse,
+  UpdateBatchRequest,
+  PatchBatchStatusRequest,
+  VaccinationProtocolResponse,
+  CreateVaccinationProtocolRequest,
+  VaccinationAlertResponse,
+  VaccinationScheduleResponse,
 } from '@/types/admin';
 
 /* Buildings */
@@ -79,6 +85,18 @@ export async function createBatch(
 ): Promise<BatchResponse> {
   return apiRequest<BatchResponse>('/api/admin/batches', {
     method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+export async function updateBatch(
+  token: string,
+  id: number,
+  body: UpdateBatchRequest
+): Promise<BatchResponse> {
+  return apiRequest<BatchResponse>(`/api/admin/batches/${id}`, {
+    method: 'PUT',
     body: JSON.stringify(body),
     token,
   });
@@ -156,6 +174,24 @@ export async function getOuvrierStockFlat(token: string): Promise<StockItemRespo
   ).then((r) => r.content);
 }
 
+/** Vet: active batches only — uses /api/vet/batches/active (accessible by VETERINAIRE + ADMIN) */
+export async function getVetActiveBatches(token: string): Promise<BatchResponse[]> {
+  return apiRequest<BatchResponse[]>('/api/vet/batches/active', { token });
+}
+
+/** Vet: vaccine + medication stock only — uses /api/vet/stock/sanitary */
+export async function getVetSanitaryStock(token: string): Promise<StockItemResponse[]> {
+  return apiRequest<StockItemResponse[]>('/api/vet/stock/sanitary', { token });
+}
+
+/** Vet: all batches flat — uses /api/vet/batches (accessible by VETERINAIRE + ADMIN) */
+export async function getVetBatchesFlat(token: string): Promise<BatchResponse[]> {
+  return apiRequest<PageResponse<BatchResponse>>(
+    '/api/vet/batches?page=0&size=1000',
+    { token }
+  ).then((r) => r.content);
+}
+
 export async function getStockItemById(
   token: string,
   id: number
@@ -184,6 +220,11 @@ export async function getUsers(
     `/api/admin/users?page=${page}&size=${size}`,
     { token }
   );
+}
+
+export async function getOuvrierUsers(token: string): Promise<UserResponse[]> {
+  const page = await getUsers(token, 0, 100);
+  return page.content.filter((u) => u.role === 'Ouvrier');
 }
 
 export async function adminChangeUserPassword(
@@ -390,6 +431,86 @@ export async function getBatchCost(
   const params = fixedCharges != null ? `?fixedCharges=${fixedCharges}` : '';
   return apiRequest<BatchCostBreakdownResponse>(
     `/api/admin/batches/${batchId}/cost${params}`,
+    { token }
+  );
+}
+
+/* Batch status — safe transition with withdrawal period enforcement */
+export async function patchBatchStatus(
+  token: string,
+  id: number,
+  body: PatchBatchStatusRequest
+): Promise<BatchResponse> {
+  return apiRequest<BatchResponse>(`/api/admin/batches/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+/* Vaccination Protocols (Admin CRUD) */
+export async function createVaccinationProtocol(
+  token: string,
+  body: CreateVaccinationProtocolRequest
+): Promise<VaccinationProtocolResponse> {
+  return apiRequest<VaccinationProtocolResponse>('/api/admin/vaccination-protocols', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+export async function updateVaccinationProtocol(
+  token: string,
+  id: number,
+  body: CreateVaccinationProtocolRequest
+): Promise<VaccinationProtocolResponse> {
+  return apiRequest<VaccinationProtocolResponse>(`/api/admin/vaccination-protocols/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+    token,
+  });
+}
+
+export async function deleteVaccinationProtocol(
+  token: string,
+  id: number
+): Promise<void> {
+  return apiRequest<void>(`/api/admin/vaccination-protocols/${id}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
+export async function getVaccinationProtocolsByStrain(
+  token: string,
+  strain: string
+): Promise<VaccinationProtocolResponse[]> {
+  return apiRequest<VaccinationProtocolResponse[]>(
+    `/api/admin/vaccination-protocols/by-strain/${encodeURIComponent(strain)}`,
+    { token }
+  );
+}
+
+/* Vaccination Alerts (Vet / Admin) */
+export async function getVaccinationAlerts(
+  token: string
+): Promise<VaccinationAlertResponse[]> {
+  return apiRequest<VaccinationAlertResponse[]>('/api/vet/vaccination-alerts', { token });
+}
+
+export async function getOverdueVaccinationAlerts(
+  token: string
+): Promise<VaccinationAlertResponse[]> {
+  return apiRequest<VaccinationAlertResponse[]>('/api/vet/vaccination-alerts/overdue', { token });
+}
+
+export async function getBatchVaccinationSchedule(
+  token: string,
+  batchId: number
+): Promise<VaccinationScheduleResponse[]> {
+  return apiRequest<VaccinationScheduleResponse[]>(
+    `/api/vet/vaccination-alerts/batch/${batchId}/schedule`,
     { token }
   );
 }
