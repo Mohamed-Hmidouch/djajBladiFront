@@ -61,7 +61,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       if (error instanceof ApiError) {
         setServerError(error.message);
       } else {
-        setServerError('An unexpected error occurred. Please try again.');
+        setServerError('Une erreur inattendue est survenue. Veuillez réessayer.');
       }
     }
   };

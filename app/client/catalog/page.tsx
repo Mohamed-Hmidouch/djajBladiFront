@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { getToken } from '@/lib/jwt';
+import { ApiError } from '@/lib/api';
 import { placeOrder } from '@/lib/client';
 import { useClientData } from '@/hooks/useClientData';
 import type { AvailableBatchResponse, PurchaseOrderRequest } from '@/types/client';
@@ -98,7 +99,7 @@ function OrderSheet({
       toast.success('Commande passee avec succes !');
       onSuccess();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erreur lors de la commande';
+      const msg = err instanceof ApiError ? err.message : 'Erreur lors de la commande. Veuillez réessayer.';
       toast.error(msg);
     } finally {
       setSubmitting(false);

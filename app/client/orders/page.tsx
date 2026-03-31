@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { getToken } from '@/lib/jwt';
+import { ApiError } from '@/lib/api';
 import { cancelOrder } from '@/lib/client';
 import { useClientData } from '@/hooks/useClientData';
 import type { PaymentStatus, PurchaseOrderResponse } from '@/types/client';
@@ -140,7 +141,7 @@ export default function OrdersPage() {
       toast.success('Commande annulee');
       await refresh();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Impossible d\'annuler';
+      const msg = err instanceof ApiError ? err.message : 'Impossible d\'annuler cette commande.';
       toast.error(msg);
     } finally {
       setCancellingId(null);

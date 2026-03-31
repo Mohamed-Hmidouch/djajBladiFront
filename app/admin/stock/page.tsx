@@ -300,7 +300,7 @@ export default function AdminStockPage() {
       setForm(initialForm);
       await fetchData();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Erreur lors de la creation');
+      setFormError(err instanceof ApiError ? err.message : 'Erreur lors de la création de l\'article.');
     } finally {
       setSubmitting(false);
     }

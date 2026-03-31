@@ -56,16 +56,35 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const errorData = data as { errors?: Record<string, string>; error?: string; message?: string } | null;
+    const errorData = data as {
+      errors?: Record<string, string>;
+      error?: string;
+      message?: string;
+      detail?: string;
+      title?: string;
+    } | null;
     
-    /* Handle validation errors */
+    /* Handle validation errors (field-level) */
     if (errorData?.errors) {
-      const firstError = Object.values(errorData.errors)[0] || 'Validation failed';
+      const firstError = Object.values(errorData.errors)[0] || 'Les données saisies sont invalides.';
       throw new ApiError(firstError, response.status, errorData.errors);
     }
     
-    /* Handle general errors */
-    const message = errorData?.error || errorData?.message || `Request failed with status ${response.status}`;
+    /* Extract message: RFC 7807 ProblemDetail uses "detail", Spring also sets "error"/"message" */
+    const serverMessage = errorData?.detail || errorData?.error || errorData?.message;
+    
+    /* Provide clear French fallback messages by status code */
+    const fallbackByStatus: Record<number, string> = {
+      400: 'Les données envoyées sont incorrectes. Veuillez vérifier votre saisie.',
+      401: 'Votre session a expiré. Veuillez vous reconnecter.',
+      403: 'Vous n\'avez pas les droits nécessaires pour cette action.',
+      404: 'La ressource demandée est introuvable.',
+      409: 'Cette opération entre en conflit avec l\'état actuel des données.',
+      422: 'Les données ne peuvent pas être traitées. Vérifiez votre saisie.',
+      500: 'Une erreur interne est survenue. Veuillez réessayer plus tard.',
+    };
+    
+    const message = serverMessage || fallbackByStatus[response.status] || 'Une erreur inattendue est survenue.';
     throw new ApiError(message, response.status);
   }
 

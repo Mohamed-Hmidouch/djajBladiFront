@@ -92,7 +92,7 @@ export default function AdminBatchesPage() {
       setEditForm(null);
       await fetchData(page);
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Erreur lors de la modification');
+      setEditError(err instanceof ApiError ? err.message : 'Erreur lors de la modification du lot.');
     } finally {
       setEditSubmitting(false);
     }
@@ -162,7 +162,7 @@ export default function AdminBatchesPage() {
       setForm(initialForm);
       await fetchData(page);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Erreur lors de la creation');
+      setFormError(err instanceof ApiError ? err.message : 'Erreur lors de la création du lot.');
     } finally {
       setSubmitting(false);
     }

@@ -388,7 +388,9 @@ export default function DashboardPage() {
     try {
       await approveHealthRecord(token, id);
       await fetchSupervision(supervisionDays);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Échec approbation:', err);
+    }
     finally { setApprovingId(null); }
   }
 
@@ -399,7 +401,9 @@ export default function DashboardPage() {
     try {
       await rejectHealthRecord(token, id);
       await fetchSupervision(supervisionDays);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('Échec rejet:', err);
+    }
     finally { setRejectingId(null); }
   }
 
