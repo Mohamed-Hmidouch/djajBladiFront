@@ -73,10 +73,23 @@ export async function apiRequest<T>(
     /* Extract message: RFC 7807 ProblemDetail uses "detail", Spring also sets "error"/"message" */
     const serverMessage = errorData?.detail || errorData?.error || errorData?.message;
     
+    /* Translate known English backend messages to French (legacy backend compatibility) */
+    const knownEnglishMessages: Record<string, string> = {
+      'Invalid email or password': 'Email ou mot de passe incorrect.',
+      'Bad credentials': 'Email ou mot de passe incorrect.',
+      'User not found': 'Utilisateur introuvable.',
+      'Email already exists': 'Un compte avec cet email existe déjà.',
+      'Access Denied': 'Vous n\'avez pas les droits nécessaires pour cette action.',
+      'Unauthorized': 'Authentification requise. Veuillez vous connecter.',
+    };
+    const resolvedMessage = serverMessage
+      ? (knownEnglishMessages[serverMessage] ?? serverMessage)
+      : null;
+    
     /* Provide clear French fallback messages by status code */
     const fallbackByStatus: Record<number, string> = {
       400: 'Les données envoyées sont incorrectes. Veuillez vérifier votre saisie.',
-      401: 'Votre session a expiré. Veuillez vous reconnecter.',
+      401: 'Email ou mot de passe incorrect.',
       403: 'Vous n\'avez pas les droits nécessaires pour cette action.',
       404: 'La ressource demandée est introuvable.',
       409: 'Cette opération entre en conflit avec l\'état actuel des données.',
@@ -84,7 +97,7 @@ export async function apiRequest<T>(
       500: 'Une erreur interne est survenue. Veuillez réessayer plus tard.',
     };
     
-    const message = serverMessage || fallbackByStatus[response.status] || 'Une erreur inattendue est survenue.';
+    const message = resolvedMessage || fallbackByStatus[response.status] || 'Une erreur inattendue est survenue.';
     throw new ApiError(message, response.status);
   }
 
